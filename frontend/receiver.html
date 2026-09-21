@@ -6,8 +6,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#020809">
   <meta name="description"
-    content="Mobile Mic — Host a private offline wireless microphone meeting room over local Wi-Fi. No internet required.">
-  <title>Mobile Mic — Offline Meeting Audio System</title>
+    content="Wireless Mic — Host a private offline wireless microphone meeting room over local Wi-Fi. No internet required.">
+  <title>Wireless Mic — Offline Meeting Audio System</title>
   <link rel="stylesheet" href="style.css">
 </head>
 
@@ -25,7 +25,7 @@
           </svg>
         </div>
         <div class="brand-text">
-          <h1>Mobile Mic</h1>
+          <h1>Wireless Mic</h1>
           <p id="top-subtitle">Offline Meeting Audio System</p>
         </div>
       </div>
@@ -405,16 +405,16 @@
           </div>
           <div class="device-text">
             <div style="display:flex; align-items:center; gap:10px;">
-              <h3 id="console-device-name">Mobile Microphone</h3>
+              <h3 id="console-device-name">Wireless Audio Session</h3>
               <div class="live-soundwave-anim" id="console-live-wave" hidden>
                 <span></span><span></span><span></span><span></span>
               </div>
-              <span class="status-badge" id="console-audio-state-badge">
+              <span class="status-badge live" id="console-audio-state-badge">
                 <span class="status-dot"></span>
-                <span id="console-audio-state-text">CONNECTED</span>
+                <span id="console-audio-state-text">SESSION ACTIVE</span>
               </span>
             </div>
-            <p id="console-device-sub">Live Audio Stream via WebRTC &bull; Direct Local Wi-Fi</p>
+            <p id="console-device-sub">Master Audio Receiver &bull; Local Wi-Fi Network</p>
           </div>
         </div>
 
@@ -433,130 +433,172 @@
         </div>
       </div>
 
-      <!-- Waveform Visualizer -->
-      <div class="glass-card waveform-card highlight">
-        <div class="waveform-header">
-          <div style="display:flex; align-items:center; gap:10px;">
-            <span
-              style="font-size:0.88rem; font-weight:800; color:var(--text-primary); display:flex; align-items:center; gap:8px; text-transform:uppercase; letter-spacing:0.06em;">
+      <!-- Main Studio Layout: Left Controls + Right IN ROOM Panel -->
+      <div class="console-workspace-layout">
+
+        <!-- Left Column: Waveform + Bottom Controls -->
+        <div class="console-main-column">
+
+          <!-- Waveform Visualizer -->
+          <div class="glass-card waveform-card highlight">
+            <div class="waveform-header">
+              <div style="display:flex; align-items:center; gap:10px;">
+                <span
+                  style="font-size:0.88rem; font-weight:800; color:var(--text-primary); display:flex; align-items:center; gap:8px; text-transform:uppercase; letter-spacing:0.06em;">
+                  <svg class="svg-icon sm" viewBox="0 0 24 24">
+                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+                  </svg>
+                  Real-Time Oscilloscope &amp; Spectrum
+                </span>
+                <span class="badge-offline" style="font-size:0.68rem; padding:2px 10px;">48 kHz Mono</span>
+              </div>
+              <div style="display:flex; align-items:center; gap:8px;">
+                <span
+                  style="font-size:0.72rem; color:var(--text-muted); font-weight:700; text-transform:uppercase;">Peak</span>
+                <span
+                  style="font-family:var(--font-mono); font-size:0.95rem; font-weight:800; color:var(--accent-electric);"
+                  id="level-db">— dBFS</span>
+              </div>
+            </div>
+
+            <div class="visualizer-canvas-container" style="overflow:hidden; border-radius:var(--radius-md);">
+              <canvas id="host-waveform-canvas"></canvas>
+            </div>
+
+            <!-- Segmented VU Meter -->
+            <div class="vu-meter-deck">
+              <canvas id="rx-meter"></canvas>
+              <div class="vu-scale-labels">
+                <span>-60 dB</span>
+                <span>-40 dB</span>
+                <span>-20 dB</span>
+                <span>-12 dB</span>
+                <span>-6 dB</span>
+                <span style="color:var(--accent-red);">0 dB CLIP</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Studio Bottom: Master Output + Telemetry -->
+          <div class="studio-bottom-grid">
+
+            <!-- Master Output Controls -->
+            <div class="glass-card output-controls">
+              <div class="section-header">
+                <span class="section-title" style="display:flex; align-items:center; gap:8px;">
+                  <svg class="svg-icon sm" viewBox="0 0 24 24">
+                    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                    <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+                  </svg>
+                  Master Output
+                </span>
+                <span class="volume-output" id="volume-out">100%</span>
+              </div>
+
+              <div class="volume-fader-track">
+                <label for="volume">Output Gain</label>
+                <input id="volume" type="range" min="0" max="100" value="100">
+              </div>
+
+              <div class="control-actions-row">
+                <button class="btn-secondary" id="mute-btn" type="button" aria-pressed="false" style="flex:1;">
+                  <svg class="svg-icon sm" viewBox="0 0 24 24">
+                    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                    <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+                  </svg>
+                  <span>Mute Output</span>
+                </button>
+                <button class="btn-secondary" id="tone-btn" type="button" style="flex:1;">
+                  <svg class="svg-icon sm" viewBox="0 0 24 24">
+                    <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+                    <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+                  </svg>
+                  <span>440 Hz Tone</span>
+                </button>
+              </div>
+              <button class="btn-primary" id="unlock-btn" type="button" hidden style="width:100%;">Click to Enable Laptop
+                Sound</button>
+            </div>
+
+            <!-- Live Network Telemetry -->
+            <div class="glass-card telemetry-card">
+              <div class="section-header">
+                <span class="section-title" style="display:flex; align-items:center; gap:8px;">
+                  <svg class="svg-icon sm" viewBox="0 0 24 24">
+                    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+                  </svg>
+                  Stream Diagnostics
+                </span>
+                <span class="status-badge" style="padding:3px 11px; font-size:0.70rem;" id="telemetry-quality-badge">
+                  <span class="status-dot"></span>
+                  LAN Optimal
+                </span>
+              </div>
+
+              <div class="metrics-subgrid">
+                <div class="metric-card" id="card-metric-rtt">
+                  <span>Round Trip (RTT)</span>
+                  <strong id="stat-rtt">—</strong>
+                </div>
+                <div class="metric-card" id="card-metric-loss">
+                  <span>Packet Loss</span>
+                  <strong id="stat-loss">—</strong>
+                </div>
+                <div class="metric-card">
+                  <span>Jitter</span>
+                  <strong id="stat-jitter">—</strong>
+                </div>
+                <div class="metric-card">
+                  <span>Bitrate</span>
+                  <strong id="stat-bitrate">—</strong>
+                </div>
+                <div class="metric-card">
+                  <span>Buffer</span>
+                  <strong id="stat-buffer">—</strong>
+                </div>
+                <div class="metric-card">
+                  <span>Transport</span>
+                  <strong id="connection-status"
+                    style="font-size:0.92rem; color:var(--accent-green-glow);">Connected</strong>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Column: IN ROOM Connected Devices Panel -->
+        <div class="glass-card in-room-panel" id="in-room-panel">
+          <div class="section-header in-room-header">
+            <span class="section-title in-room-title" style="display:flex; align-items:center; gap:8px;">
               <svg class="svg-icon sm" viewBox="0 0 24 24">
-                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                <circle cx="9" cy="7" r="4" />
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                <path d="M16 3.13a4 4 0 0 1 0 7.75" />
               </svg>
-              Real-Time Oscilloscope &amp; Spectrum
+              IN ROOM
             </span>
-            <span class="badge-offline" style="font-size:0.68rem; padding:2px 10px;">48 kHz Mono</span>
+            <span class="participant-count-badge" id="participant-count">1</span>
           </div>
-          <div style="display:flex; align-items:center; gap:8px;">
-            <span
-              style="font-size:0.72rem; color:var(--text-muted); font-weight:700; text-transform:uppercase;">Peak</span>
-            <span
-              style="font-family:var(--font-mono); font-size:0.95rem; font-weight:800; color:var(--accent-electric);"
-              id="level-db">— dBFS</span>
+
+          <!-- Room Speaker Live Status Bar -->
+          <div class="speaker-status-bar" id="speaker-status-bar">
+            <div class="speaker-status-idle" id="speaker-status-idle">
+              <span class="speaker-avail-dot"></span>
+              <span>MIC AVAILABLE</span>
+            </div>
+            <div class="speaker-status-active" id="speaker-status-active" hidden>
+              <span class="speaker-live-dot"></span>
+              <span id="speaker-status-name">—</span>
+            </div>
+          </div>
+
+          <!-- Real-Time Participant List -->
+          <div class="participant-list" id="participant-list">
+            <!-- Dynamically populated -->
           </div>
         </div>
 
-        <div class="visualizer-canvas-container" style="overflow:hidden; border-radius:var(--radius-md);">
-          <canvas id="host-waveform-canvas"></canvas>
-        </div>
-
-        <!-- Segmented VU Meter -->
-        <div class="vu-meter-deck">
-          <canvas id="rx-meter"></canvas>
-          <div class="vu-scale-labels">
-            <span>-60 dB</span>
-            <span>-40 dB</span>
-            <span>-20 dB</span>
-            <span>-12 dB</span>
-            <span>-6 dB</span>
-            <span style="color:var(--accent-red);">0 dB CLIP</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- Studio Bottom: Master Output + Telemetry -->
-      <div class="studio-bottom-grid">
-
-        <!-- Master Output Controls -->
-        <div class="glass-card output-controls">
-          <div class="section-header">
-            <span class="section-title" style="display:flex; align-items:center; gap:8px;">
-              <svg class="svg-icon sm" viewBox="0 0 24 24">
-                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-                <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
-              </svg>
-              Master Output
-            </span>
-            <span class="volume-output" id="volume-out">100%</span>
-          </div>
-
-          <div class="volume-fader-track">
-            <label for="volume">Output Gain</label>
-            <input id="volume" type="range" min="0" max="100" value="100">
-          </div>
-
-          <div class="control-actions-row">
-            <button class="btn-secondary" id="mute-btn" type="button" aria-pressed="false" style="flex:1;">
-              <svg class="svg-icon sm" viewBox="0 0 24 24">
-                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-                <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
-              </svg>
-              <span>Mute Output</span>
-            </button>
-            <button class="btn-secondary" id="tone-btn" type="button" style="flex:1;">
-              <svg class="svg-icon sm" viewBox="0 0 24 24">
-                <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
-                <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
-              </svg>
-              <span>440 Hz Tone</span>
-            </button>
-          </div>
-          <button class="btn-primary" id="unlock-btn" type="button" hidden style="width:100%;">Click to Enable Laptop
-            Sound</button>
-        </div>
-
-        <!-- Live Network Telemetry -->
-        <div class="glass-card telemetry-card">
-          <div class="section-header">
-            <span class="section-title" style="display:flex; align-items:center; gap:8px;">
-              <svg class="svg-icon sm" viewBox="0 0 24 24">
-                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
-              </svg>
-              Stream Diagnostics
-            </span>
-            <span class="status-badge" style="padding:3px 11px; font-size:0.70rem;" id="telemetry-quality-badge">
-              <span class="status-dot"></span>
-              LAN Optimal
-            </span>
-          </div>
-
-          <div class="metrics-subgrid">
-            <div class="metric-card" id="card-metric-rtt">
-              <span>Round Trip (RTT)</span>
-              <strong id="stat-rtt">—</strong>
-            </div>
-            <div class="metric-card" id="card-metric-loss">
-              <span>Packet Loss</span>
-              <strong id="stat-loss">—</strong>
-            </div>
-            <div class="metric-card">
-              <span>Jitter</span>
-              <strong id="stat-jitter">—</strong>
-            </div>
-            <div class="metric-card">
-              <span>Bitrate</span>
-              <strong id="stat-bitrate">—</strong>
-            </div>
-            <div class="metric-card">
-              <span>Buffer</span>
-              <strong id="stat-buffer">—</strong>
-            </div>
-            <div class="metric-card">
-              <span>Transport</span>
-              <strong id="connection-status"
-                style="font-size:0.92rem; color:var(--accent-green-glow);">Connected</strong>
-            </div>
-          </div>
-        </div>
       </div>
     </section>
 

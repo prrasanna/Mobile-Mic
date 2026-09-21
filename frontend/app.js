@@ -42,6 +42,11 @@
 
     // View 5: Mic Live Console
     viewMicConsole: $('view-mic-console'),
+    micLockStatusCard: $('mic-lock-status-card'),
+    lockStateAvailable: $('lock-state-available'),
+    lockStateSpeaking: $('lock-state-speaking'),
+    lockStateLocked: $('lock-state-locked'),
+    lockedSpeakerDesc: $('locked-speaker-desc'),
     micCircleBtn: $('mic-circle-btn'),
     micCircleSymbol: $('mic-circle-symbol'),
     micCircleLabel: $('mic-circle-label'),
@@ -63,6 +68,7 @@
   let currentRoomId = '';
   let currentRoomName = 'Meeting Room';
   let currentDeviceName = WM.detectDeviceName();
+  let myClientId = 'user_' + Math.random().toString(36).slice(2, 9);
 
   let stream = null;
   let audioTrack = null;
@@ -75,10 +81,14 @@
   let statsTimer = null;
   let wakeLock = null;
 
-  // Mic state
+  // Mic state & Room Lock
   let latched = false;
   let pttHeld = false;
   let muted = false;
+  let hasMicLock = false;
+  let currentSpeaker = null;
+  let microphoneLocked = false;
+  let activeSpeakerName = null;
 
   const queue = WM.serialQueue();
 
@@ -102,8 +112,31 @@
   }
 
   // ------------------------------------------------------------------- MIC CONTROL
+  function updateLockUI() {
+    if (hasMicLock) {
+      if (el.lockStateSpeaking) el.lockStateSpeaking.hidden = false;
+      if (el.lockStateAvailable) el.lockStateAvailable.hidden = true;
+      if (el.lockStateLocked) el.lockStateLocked.hidden = true;
+      if (el.pttButton) el.pttButton.disabled = false;
+    } else if (microphoneLocked) {
+      if (el.lockStateSpeaking) el.lockStateSpeaking.hidden = true;
+      if (el.lockStateAvailable) el.lockStateAvailable.hidden = true;
+      if (el.lockStateLocked) el.lockStateLocked.hidden = false;
+      if (el.lockedSpeakerDesc) {
+        el.lockedSpeakerDesc.textContent = (activeSpeakerName ? `MIC LOCKED • ${activeSpeakerName} is speaking` : 'MIC LOCKED • Someone is speaking');
+      }
+      if (el.pttButton) el.pttButton.disabled = true;
+    } else {
+      if (el.lockStateSpeaking) el.lockStateSpeaking.hidden = true;
+      if (el.lockStateAvailable) el.lockStateAvailable.hidden = false;
+      if (el.lockStateLocked) el.lockStateLocked.hidden = true;
+      if (el.pttButton) el.pttButton.disabled = false;
+    }
+  }
+
   function applyMicState() {
-    const live = !muted && (latched || pttHeld);
+    // HARD ENFORCEMENT: Audio track is enabled ONLY if participant holds the mic lock!
+    const live = hasMicLock && !muted && (latched || pttHeld);
     if (audioTrack) audioTrack.enabled = live;
 
     if (live) {
@@ -111,6 +144,11 @@
       el.micCircleLabel.textContent = 'LIVE';
       el.micLiveBadge.className = 'status-badge live';
       el.micLiveText.textContent = 'TRANSMITTING';
+    } else if (!hasMicLock && microphoneLocked) {
+      el.micCircleBtn.className = 'big-mic-btn locked';
+      el.micCircleLabel.textContent = 'LOCKED';
+      el.micLiveBadge.className = 'status-badge amber';
+      el.micLiveText.textContent = 'MIC LOCKED';
     } else if (muted) {
       el.micCircleBtn.className = 'big-mic-btn';
       el.micCircleLabel.textContent = 'MUTED';
@@ -123,10 +161,11 @@
       el.micLiveText.textContent = 'STANDBY';
     }
 
-    el.pttButton.classList.toggle('active', pttHeld && !muted);
+    el.pttButton.classList.toggle('active', pttHeld && !muted && hasMicLock);
     const muteText = $('mute-btn-text');
     if (muteText) muteText.textContent = muted ? 'UNMUTE' : 'MUTE';
     el.muteBtn.classList.toggle('btn-danger', muted);
+    updateLockUI();
   }
 
   async function initMicrophone() {
@@ -293,7 +332,9 @@
         signaling.send({
           type: 'join-request',
           roomId: currentRoomId,
+          clientId: myClientId,
           deviceName: currentDeviceName,
+          displayName: currentDeviceName,
         });
         break;
 
@@ -307,6 +348,7 @@
         break;
 
       case 'join-response':
+        if (msg.targetClientId && msg.targetClientId !== myClientId) return;
         if (msg.approved) {
           // Host Accepted!
           showView('console');
@@ -321,6 +363,69 @@
           showView('rejected');
           closePc();
         }
+        break;
+
+      case 'mic_granted':
+        if (msg.speakerId === myClientId) {
+          hasMicLock = true;
+          microphoneLocked = true;
+          currentSpeaker = myClientId;
+          activeSpeakerName = msg.speakerName || currentDeviceName;
+          latched = true;
+          applyMicState();
+        } else {
+          hasMicLock = false;
+          latched = false;
+          pttHeld = false;
+          microphoneLocked = true;
+          currentSpeaker = msg.speakerId;
+          activeSpeakerName = msg.speakerName;
+          applyMicState();
+        }
+        break;
+
+      case 'mic_denied':
+        hasMicLock = false;
+        latched = false;
+        pttHeld = false;
+        microphoneLocked = true;
+        currentSpeaker = msg.currentSpeaker;
+        activeSpeakerName = msg.speakerName;
+        applyMicState();
+        showError((activeSpeakerName ? activeSpeakerName : 'Another participant') + ' is currently speaking.');
+        setTimeout(() => showError(''), 2500);
+        break;
+
+      case 'mic_released':
+        hasMicLock = false;
+        latched = false;
+        pttHeld = false;
+        microphoneLocked = false;
+        currentSpeaker = null;
+        activeSpeakerName = null;
+        applyMicState();
+        break;
+
+      case 'speaker_disconnected':
+        hasMicLock = false;
+        latched = false;
+        pttHeld = false;
+        microphoneLocked = false;
+        currentSpeaker = null;
+        activeSpeakerName = null;
+        applyMicState();
+        break;
+
+      case 'room_state':
+        microphoneLocked = !!msg.microphoneLocked;
+        currentSpeaker = msg.currentSpeaker || null;
+        activeSpeakerName = msg.speakerName || null;
+        hasMicLock = (currentSpeaker === myClientId);
+        if (!hasMicLock) {
+          latched = false;
+          pttHeld = false;
+        }
+        applyMicState();
         break;
 
       case 'request-offer':
@@ -363,13 +468,21 @@
       signaling.send({
         type: 'join-request',
         roomId: currentRoomId,
+        clientId: myClientId,
         deviceName: currentDeviceName,
+        displayName: currentDeviceName,
       });
       return;
     }
 
     signaling = new WM.Signaling('sender', {
       isConnected: () => !!pc && pc.connectionState === 'connected',
+      getJoinData: () => ({
+        roomId: currentRoomId,
+        clientId: myClientId,
+        displayName: currentDeviceName,
+        deviceName: currentDeviceName,
+      }),
       onMessage: onSignalingMessage,
       onClose: () => {
         peerPresent = false;
@@ -464,8 +577,33 @@
 
     // Circular Mic Button Toggle
     el.micCircleBtn.addEventListener('click', () => {
-      latched = !latched;
-      applyMicState();
+      if (hasMicLock) {
+        // User turns mic OFF
+        latched = false;
+        hasMicLock = false;
+        applyMicState();
+        if (signaling) {
+          signaling.send({
+            type: 'mic_release',
+            roomId: currentRoomId,
+            clientId: myClientId,
+          });
+        }
+      } else {
+        // User turns mic ON
+        if (microphoneLocked) {
+          showError((activeSpeakerName ? activeSpeakerName : 'Another participant') + ' is currently speaking.');
+          setTimeout(() => showError(''), 2500);
+          return;
+        }
+        if (signaling) {
+          signaling.send({
+            type: 'mic_request',
+            roomId: currentRoomId,
+            clientId: myClientId,
+          });
+        }
+      }
     });
 
     // Mute Button Toggle
@@ -476,14 +614,41 @@
 
     // Push To Talk Handlers
     const pressPtt = () => {
+      if (microphoneLocked && !hasMicLock) {
+        showError((activeSpeakerName ? activeSpeakerName : 'Another participant') + ' is currently speaking.');
+        setTimeout(() => showError(''), 2500);
+        return;
+      }
       pttHeld = true;
-      applyMicState();
+      if (!hasMicLock) {
+        if (signaling) {
+          signaling.send({
+            type: 'mic_request',
+            roomId: currentRoomId,
+            clientId: myClientId,
+          });
+        }
+      } else {
+        applyMicState();
+      }
     };
 
     const releasePtt = () => {
       if (!pttHeld) return;
       pttHeld = false;
-      applyMicState();
+      if (hasMicLock && !latched) {
+        hasMicLock = false;
+        applyMicState();
+        if (signaling) {
+          signaling.send({
+            type: 'mic_release',
+            roomId: currentRoomId,
+            clientId: myClientId,
+          });
+        }
+      } else {
+        applyMicState();
+      }
     };
 
     el.pttButton.addEventListener('touchstart', (e) => { e.preventDefault(); pressPtt(); }, { passive: false });
@@ -497,9 +662,17 @@
 
     // Leave Room
     el.btnLeaveRoom.addEventListener('click', () => {
+      if (hasMicLock && signaling) {
+        signaling.send({
+          type: 'mic_release',
+          roomId: currentRoomId,
+          clientId: myClientId,
+        });
+      }
       closePc();
       latched = false;
       pttHeld = false;
+      hasMicLock = false;
       muted = false;
       applyMicState();
       showView('preview');

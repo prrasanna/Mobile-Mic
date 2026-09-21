@@ -1,4 +1,4 @@
-# Mobile Mic — Offline Wireless Meeting Audio System
+# Wireless Mic — Offline Wireless Meeting Audio System
 
 A private, 100% offline wireless microphone and meeting audio system built with **Node.js, WebSockets, WebRTC, and Web Audio API**.
 

@@ -104,7 +104,8 @@ const WM = (() => {
 
       ws.onopen = () => {
         const connected = !!(this.handlers.isConnected && this.handlers.isConnected());
-        this.send({ type: 'join', role: this.role, connected });
+        const extra = (this.handlers.getJoinData && this.handlers.getJoinData()) || {};
+        this.send({ type: 'join', role: this.role, connected, ...extra });
         if (this.handlers.onOpen) this.handlers.onOpen();
       };
       ws.onmessage = (event) => {

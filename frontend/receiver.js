@@ -55,6 +55,15 @@
     rxMeter: $('rx-meter'),
     levelDb: $('level-db'),
 
+    // IN ROOM Panel Elements
+    inRoomPanel: $('in-room-panel'),
+    participantCount: $('participant-count'),
+    speakerStatusBar: $('speaker-status-bar'),
+    speakerStatusIdle: $('speaker-status-idle'),
+    speakerStatusActive: $('speaker-status-active'),
+    speakerStatusName: $('speaker-status-name'),
+    participantList: $('participant-list'),
+
     // Stats
     statRtt: $('stat-rtt'),
     statLoss: $('stat-loss'),
@@ -80,6 +89,12 @@
   let hostPort = window.location.port || (window.location.protocol === 'https:' ? '443' : '80');
   let currentJoinUrl = '';
   let pendingDeviceRequest = null;
+  let myClientId = 'host_' + Math.random().toString(36).slice(2, 9);
+
+  // Multi-participant & Mic Lock state
+  let roomParticipants = [];
+  let currentSpeaker = null;
+  let microphoneLocked = false;
 
   // Audio & WebRTC State
   let audioCtx = null;
@@ -380,15 +395,99 @@
     }
   }
 
+  // -------------------------------------------------------- IN ROOM PARTICIPANT LIST
+  function escapeHtml(str) {
+    return String(str || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function renderRoomState(data) {
+    if (!data) return;
+    roomParticipants = data.participants || [];
+    currentSpeaker = data.currentSpeaker || null;
+    microphoneLocked = !!data.microphoneLocked;
+
+    if (el.participantCount) {
+      el.participantCount.textContent = roomParticipants.length;
+    }
+
+    if (el.speakerStatusIdle && el.speakerStatusActive && el.speakerStatusName) {
+      if (microphoneLocked && currentSpeaker) {
+        el.speakerStatusIdle.hidden = true;
+        el.speakerStatusActive.hidden = false;
+        el.speakerStatusName.textContent = (data.speakerName || 'Speaker') + ' is Speaking';
+      } else {
+        el.speakerStatusIdle.hidden = false;
+        el.speakerStatusActive.hidden = true;
+      }
+    }
+
+    if (el.participantList) {
+      if (roomParticipants.length === 0) {
+        el.participantList.innerHTML = `
+          <div class="participant-empty" id="participant-empty">
+            <svg class="svg-icon" viewBox="0 0 24 24" style="color:var(--text-muted); width:18px; height:18px;">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+              <circle cx="9" cy="7" r="4" />
+            </svg>
+            <span>Waiting for devices to join...</span>
+          </div>`;
+        return;
+      }
+
+      el.participantList.innerHTML = roomParticipants.map((p) => {
+        const isSpeaking = p.isSpeaking || (currentSpeaker && p.id === currentSpeaker);
+        let statusHtml = '';
+        if (isSpeaking) {
+          statusHtml = `<span class="status-speaking"><svg class="svg-icon sm" viewBox="0 0 24 24" style="width:13px; height:13px;"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg> SPEAKING</span>`;
+        } else if (microphoneLocked) {
+          statusHtml = `<span class="status-locked"><svg class="svg-icon sm" viewBox="0 0 24 24" style="width:13px; height:13px;"><rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> MIC LOCKED</span>`;
+        } else {
+          if (p.isHost) {
+            statusHtml = `<span class="status-host">Master Receiver</span>`;
+          } else {
+            statusHtml = `<span class="status-connected">Connected</span>`;
+          }
+        }
+
+        const dotClass = isSpeaking ? 'participant-dot live' : 'participant-dot online';
+
+        return `
+          <div class="participant-item ${isSpeaking ? 'active-speaking' : ''} ${p.isHost ? 'is-host' : ''}">
+            <div class="participant-avatar">
+              <span class="${dotClass}"></span>
+            </div>
+            <div class="participant-details">
+              <div class="participant-name-row">
+                <span class="participant-name">${escapeHtml(p.name || p.deviceName || 'Device')}</span>
+                ${p.isHost ? '<span class="host-pill-badge">HOST</span>' : ''}
+              </div>
+              <div class="participant-status-sub">
+                ${statusHtml}
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+  }
+
   // ------------------------------------------------------------ SIGNALING HANDLING
   function onSignalingMessage(msg) {
     switch (msg.type) {
       case 'joined':
         peerPresent = msg.peerPresent;
+        if (msg.roomId && signalling) {
+          signalling.send({ type: 'room_state_request', roomId: msg.roomId });
+        }
         break;
 
       case 'peer-joined':
         peerPresent = true;
+        if (signalling) signalling.send({ type: 'room_state_request', roomId: currentRoomId });
         break;
 
       case 'peer-left':
@@ -398,6 +497,22 @@
         pendingDeviceRequest = null;
         el.lobbyDeviceStatusText.textContent = 'Waiting for microphone...';
         el.lobbyDeviceStatusBadge.className = 'status-badge amber';
+        break;
+
+      case 'room_state':
+        renderRoomState(msg);
+        break;
+
+      case 'user_joined':
+      case 'user_left':
+      case 'user_disconnected':
+      case 'speaker_disconnected':
+        if (signalling) signalling.send({ type: 'room_state_request', roomId: currentRoomId });
+        break;
+
+      case 'mic_granted':
+      case 'mic_released':
+        if (signalling) signalling.send({ type: 'room_state_request', roomId: currentRoomId });
         break;
 
       case 'join-request':
@@ -441,6 +556,12 @@
 
     signalling = new WM.Signaling('receiver', {
       isConnected: () => !!pc && pc.connectionState === 'connected',
+      getJoinData: () => ({
+        roomId: currentRoomId,
+        clientId: myClientId,
+        displayName: currentRoomName || 'Host Laptop',
+        deviceName: 'Laptop (Host)',
+      }),
       onClose: () => {
         peerPresent = false;
       },
@@ -460,10 +581,12 @@
       approved: true,
       roomId: currentRoomId,
       roomName: currentRoomName,
+      targetClientId: pendingDeviceRequest.clientId,
+      clientId: pendingDeviceRequest.clientId,
     });
 
-    const deviceName = pendingDeviceRequest.deviceName || 'Mobile Microphone';
-    el.consoleDeviceName.textContent = deviceName;
+    const deviceName = pendingDeviceRequest.deviceName || 'Wireless Microphone';
+    el.consoleDeviceName.textContent = 'Wireless Audio Session';
     el.lobbyDeviceStatusText.textContent = `Connected: ${deviceName}`;
     el.lobbyDeviceStatusBadge.className = 'status-badge';
 
@@ -472,6 +595,11 @@
     el.topSubtitle.textContent = `ROOM: ${currentRoomId} • ${currentRoomName}`;
     el.hostNetworkStatus.textContent = 'SESSION ACTIVE';
     el.hostNetworkBadge.className = 'status-badge';
+
+    // Refresh room state
+    if (signalling) {
+      signalling.send({ type: 'room_state_request', roomId: currentRoomId });
+    }
   }
 
   function rejectJoinRequest() {
@@ -483,6 +611,8 @@
       type: 'join-response',
       approved: false,
       roomId: currentRoomId,
+      targetClientId: pendingDeviceRequest.clientId,
+      clientId: pendingDeviceRequest.clientId,
     });
 
     pendingDeviceRequest = null;

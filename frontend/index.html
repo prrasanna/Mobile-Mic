@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="theme-color" content="#030c0d">
-  <title>Mobile Mic - Join Meeting</title>
+  <title>Wireless Mic - Join Meeting</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -20,8 +20,8 @@
           </svg>
         </div>
         <div class="brand-text">
-          <h1>Mobile Mic</h1>
-          <p id="top-role-sub">Mobile Microphone</p>
+          <h1>Wireless Mic</h1>
+          <p id="top-role-sub">Wireless Microphone</p>
         </div>
       </div>
       <div class="status-badge" id="mobile-top-status">
@@ -141,6 +141,23 @@
 
     <!-- ================= VIEW 5: MAIN MICROPHONE LIVE CONTROL ================= -->
     <section class="mobile-view" id="view-mic-console" hidden>
+
+      <!-- Room Mic Lock Status Banner -->
+      <div class="mic-lock-status-card" id="mic-lock-status-card">
+        <div class="lock-state-available" id="lock-state-available">
+          <span class="status-dot"></span>
+          <span>MIC AVAILABLE</span>
+        </div>
+        <div class="lock-state-speaking" id="lock-state-speaking" hidden>
+          <span class="speaking-pulse-dot"></span>
+          <span>YOU ARE SPEAKING</span>
+        </div>
+        <div class="lock-state-locked" id="lock-state-locked" hidden>
+          <svg class="svg-icon sm" viewBox="0 0 24 24" style="color:var(--accent-amber);"><rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          <span id="locked-speaker-desc">MIC LOCKED</span>
+        </div>
+      </div>
+
       <!-- Big Circular Microphone Toggle -->
       <div class="glass-card mic-hero-container highlight">
         <button class="big-mic-btn" id="mic-circle-btn" type="button" aria-pressed="false">
