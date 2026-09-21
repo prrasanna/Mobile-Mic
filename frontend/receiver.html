@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#d5dae0">
+  <title>Wireless Mic - Receiver</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Start gate: browsers only allow audio playback after a click -->
+  <div class="gate" id="gate">
+    <div class="gate-inner">
+      <h2>Receive the microphone on this laptop</h2>
+      <p>Click Start, then open the transmitter page on the phone. Sound plays through this laptop's default output. Connect its headphone jack to the amplifier's line input.</p>
+      <button id="start-btn" class="btn btn-on" type="button">Start receiving</button>
+    </div>
+  </div>
+
+  <main class="app wide">
+    <header class="topbar">
+      <h1>Wireless Mic</h1>
+      <span class="role">Receiver</span>
+    </header>
+
+    <section class="tally" id="tally" aria-live="polite">
+      <span class="lamp" aria-hidden="true"></span>
+      <span class="word" id="tally-word">Waiting</span>
+      <span class="hint" id="tally-hint">No phone connected</span>
+    </section>
+
+    <section class="card" aria-label="Status">
+      <div class="row">
+        <span class="label">Connection</span>
+        <span id="connection-status" class="pill new">new</span>
+      </div>
+      <div class="row">
+        <span class="label">Phone</span>
+        <span id="sender-status" class="value">Waiting for phone</span>
+      </div>
+      <div class="row">
+        <span class="label">Network</span>
+        <span id="network-quality" class="value">-</span>
+      </div>
+    </section>
+
+    <section class="card pad" aria-label="Incoming level">
+      <div class="meter-title"><span>Incoming level</span><span id="level-db">-</span></div>
+      <canvas id="rx-meter" width="600" height="88"></canvas>
+    </section>
+
+    <section class="card" aria-label="Output">
+      <div class="volume">
+        <label for="volume">Volume</label>
+        <input id="volume" type="range" min="0" max="100" value="100">
+        <output id="volume-out" for="volume">100%</output>
+      </div>
+      <div class="btn-row" style="padding-bottom: 12px">
+        <button id="mute-btn" class="btn btn-secondary btn-mute" type="button" aria-pressed="false">MUTE OUTPUT</button>
+        <button id="tone-btn" class="btn btn-secondary" type="button">Play test tone</button>
+      </div>
+    </section>
+
+    <section class="card" aria-label="Stream statistics">
+      <div class="stats">
+        <div class="stat"><div class="n" id="stat-rtt">-</div><div class="k">Round trip</div></div>
+        <div class="stat"><div class="n" id="stat-loss">-</div><div class="k">Packet loss</div></div>
+        <div class="stat"><div class="n" id="stat-jitter">-</div><div class="k">Jitter</div></div>
+        <div class="stat"><div class="n" id="stat-buffer">-</div><div class="k">Playout buffer</div></div>
+        <div class="stat"><div class="n" id="stat-bitrate">-</div><div class="k">Bitrate</div></div>
+      </div>
+    </section>
+
+    <button id="unlock-btn" class="btn btn-on" type="button" hidden>Click to enable sound</button>
+    <div id="error-message" class="error" role="alert" hidden></div>
+    <p class="note">Volume here only scales the stream. Set the laptop's system volume to about 70-80% and use the amplifier's gain for loudness. Never connect a passive speaker directly to the headphone jack.</p>
+
+    <audio id="remote-audio" autoplay playsinline></audio>
+  </main>
+
+  <script src="common.js"></script>
+  <script src="receiver.js"></script>
+</body>
+</html>

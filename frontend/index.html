@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#d5dae0">
+  <title>Wireless Mic - Transmitter</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Start gate: browsers need a tap before audio can start -->
+  <div class="gate" id="gate">
+    <div class="gate-inner">
+      <h2>Use this phone as a microphone</h2>
+      <p>Tap Start, then allow microphone access when Chrome asks. Keep this screen on while you speak.</p>
+      <button id="start-btn" class="btn btn-on" type="button">Start</button>
+      <div id="gate-error" class="error" hidden></div>
+    </div>
+  </div>
+
+  <main class="app">
+    <header class="topbar">
+      <h1>Wireless Mic</h1>
+      <span class="role">Transmitter</span>
+    </header>
+
+    <!-- Tally: what the audience can hear right now -->
+    <section class="tally" id="tally" aria-live="polite">
+      <span class="lamp" aria-hidden="true"></span>
+      <span class="word" id="tally-word">Standby</span>
+      <span class="hint" id="tally-hint">Mic is off</span>
+    </section>
+
+    <!-- Connection status -->
+    <section class="card" aria-label="Status">
+      <div class="row">
+        <span class="label">Connection</span>
+        <span id="connection-status" class="pill new">new</span>
+      </div>
+      <div class="row">
+        <span class="label">Receiver</span>
+        <span id="receiver-status" class="value">Waiting for laptop</span>
+      </div>
+      <div class="row">
+        <span class="label">Network</span>
+        <span id="network-quality" class="value">-</span>
+      </div>
+      <div class="row">
+        <span class="label">Microphone access</span>
+        <span id="mic-permission" class="value">Not requested</span>
+      </div>
+    </section>
+
+    <!-- Microphone controls -->
+    <section class="controls" aria-label="Microphone controls">
+      <button id="ptt-button" class="btn btn-ptt" type="button">
+        PUSH TO TALK
+        <small>Hold to speak, release to stop</small>
+      </button>
+      <button id="mic-toggle" class="btn btn-off" type="button" aria-pressed="false">MIC OFF</button>
+      <div class="btn-row">
+        <button id="mute-btn" class="btn btn-secondary btn-mute" type="button" aria-pressed="false">MUTE</button>
+        <button id="reconnect-btn" class="btn btn-secondary" type="button">Reconnect</button>
+      </div>
+    </section>
+
+    <!-- Audio level meter -->
+    <section class="card pad" aria-label="Input level">
+      <div class="meter-title"><span>Input level</span><span id="level-db">-</span></div>
+      <canvas id="level-meter" width="600" height="88"></canvas>
+    </section>
+
+    <div id="error-message" class="error" role="alert" hidden></div>
+    <p class="note" id="wake-note"></p>
+  </main>
+
+  <script src="common.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
