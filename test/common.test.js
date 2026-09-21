@@ -66,3 +66,17 @@ test('serialQueue keeps going after a job throws', async () => {
   console.error = orig;
   assert.ok(ran);
 });
+
+test('generateRoomId produces standard room pattern MIC-XXXX', () => {
+  const id1 = WM.generateRoomId();
+  const id2 = WM.generateRoomId();
+  assert.match(id1, /^MIC-\d{4}$/);
+  assert.match(id2, /^MIC-\d{4}$/);
+});
+
+test('detectDeviceName returns default or recognized device string', () => {
+  const name = WM.detectDeviceName();
+  assert.strictEqual(typeof name, 'string');
+  assert.ok(name.length > 0);
+});
+

@@ -67,6 +67,19 @@ const app = express();
 app.disable('x-powered-by');
 app.use(express.static(FRONTEND_DIR, { etag: false, maxAge: 0 }));
 
+// API to provide host network info for local QR code join generation
+app.get('/api/info', (req, res) => {
+  res.json({
+    port: PORT,
+    ips: lanAddresses(),
+  });
+});
+
+// Join route alias for easy mobile QR scanning
+app.get('/join', (req, res) => {
+  res.sendFile(path.join(FRONTEND_DIR, 'index.html'));
+});
+
 // Optional: lets a phone download the mkcert root CA to install it once and
 // stop seeing "Your connection is not private". Copy rootCA.pem into certs/.
 app.get('/rootCA.pem', (req, res) => {

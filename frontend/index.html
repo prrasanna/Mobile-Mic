@@ -3,76 +3,213 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <meta name="theme-color" content="#d5dae0">
-  <title>Wireless Mic - Transmitter</title>
+  <meta name="theme-color" content="#030c0d">
+  <title>Mobile Mic - Join Meeting</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <!-- Start gate: browsers need a tap before audio can start -->
-  <div class="gate" id="gate">
-    <div class="gate-inner">
-      <h2>Use this phone as a microphone</h2>
-      <p>Tap Start, then allow microphone access when Chrome asks. Keep this screen on while you speak.</p>
-      <button id="start-btn" class="btn btn-on" type="button">Start</button>
-      <div id="gate-error" class="error" hidden></div>
-    </div>
-  </div>
-
-  <main class="app">
-    <header class="topbar">
-      <h1>Wireless Mic</h1>
-      <span class="role">Transmitter</span>
+  <div class="app-container mobile-container">
+    <!-- Top Header -->
+    <header class="top-header">
+      <div class="brand-section">
+        <div class="brand-icon">
+          <svg class="svg-icon" viewBox="0 0 24 24">
+            <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+            <line x1="12" x2="12" y1="19" y2="22"/>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <h1>Mobile Mic</h1>
+          <p id="top-role-sub">Mobile Microphone</p>
+        </div>
+      </div>
+      <div class="status-badge" id="mobile-top-status">
+        <span class="status-dot"></span>
+        <span id="mobile-top-status-text">LOCAL NETWORK</span>
+      </div>
     </header>
 
-    <!-- Tally: what the audience can hear right now -->
-    <section class="tally" id="tally" aria-live="polite">
-      <span class="lamp" aria-hidden="true"></span>
-      <span class="word" id="tally-word">Standby</span>
-      <span class="hint" id="tally-hint">Mic is off</span>
-    </section>
+    <!-- ================= VIEW 1: MANUAL ROOM CODE ENTRY ================= -->
+    <section class="glass-card form-card mobile-view" id="view-enter-code" hidden>
+      <div class="section-header">
+        <h2 style="font-size: 1.3rem; font-weight: 800; color: var(--text-primary);">JOIN A MEETING</h2>
+      </div>
+      <p style="color: var(--text-secondary); font-size: 0.88rem;">Enter the 4-digit Room Code displayed on the host laptop screen.</p>
+      
+      <div class="card-form-group">
+        <label class="card-form-label" for="input-manual-room">ROOM CODE</label>
+        <input class="card-form-input" id="input-manual-room" type="text" placeholder="e.g. MIC-4821" style="font-family: var(--font-mono); text-transform: uppercase;">
+      </div>
 
-    <!-- Connection status -->
-    <section class="card" aria-label="Status">
-      <div class="row">
-        <span class="label">Connection</span>
-        <span id="connection-status" class="pill new">new</span>
+      <div class="card-form-group">
+        <label class="card-form-label" for="input-device-name-manual">YOUR NAME / DEVICE</label>
+        <input class="card-form-input" id="input-device-name-manual" type="text" placeholder="Your Name">
       </div>
-      <div class="row">
-        <span class="label">Receiver</span>
-        <span id="receiver-status" class="value">Waiting for laptop</span>
-      </div>
-      <div class="row">
-        <span class="label">Network</span>
-        <span id="network-quality" class="value">-</span>
-      </div>
-      <div class="row">
-        <span class="label">Microphone access</span>
-        <span id="mic-permission" class="value">Not requested</span>
-      </div>
-    </section>
 
-    <!-- Microphone controls -->
-    <section class="controls" aria-label="Microphone controls">
-      <button id="ptt-button" class="btn btn-ptt" type="button">
-        PUSH TO TALK
-        <small>Hold to speak, release to stop</small>
+      <button class="btn-primary" id="btn-submit-manual-code" type="button" style="margin-top: 10px;">
+        CONTINUE TO ROOM
       </button>
-      <button id="mic-toggle" class="btn btn-off" type="button" aria-pressed="false">MIC OFF</button>
-      <div class="btn-row">
-        <button id="mute-btn" class="btn btn-secondary btn-mute" type="button" aria-pressed="false">MUTE</button>
-        <button id="reconnect-btn" class="btn btn-secondary" type="button">Reconnect</button>
+    </section>
+
+    <!-- ================= VIEW 2: JOIN PREVIEW SCREEN (AFTER SCANNING QR) ================= -->
+    <section class="glass-card join-preview-card mobile-view" id="view-join-preview">
+      <div class="status-badge" style="background: rgba(22, 60, 55, 0.7); border-color: var(--border-card);">
+        <span>JOIN MEETING</span>
       </div>
+      <h2 style="font-size: 1.5rem; font-weight: 800; color: var(--text-primary);" id="preview-room-title">Main Hall Audio</h2>
+      
+      <div class="room-details-table">
+        <div class="room-details-row">
+          <span>Room:</span>
+          <strong id="preview-room-name">Main Hall Audio</strong>
+        </div>
+        <div class="room-details-row">
+          <span>Room ID:</span>
+          <strong id="preview-room-id">MIC-4821</strong>
+        </div>
+        <div class="room-details-row">
+          <span>Host:</span>
+          <strong>Laptop Host</strong>
+        </div>
+        <div class="room-details-row">
+          <span>Connection:</span>
+          <strong style="color: var(--accent-green-glow);">● Local Network Available</strong>
+        </div>
+      </div>
+
+      <div class="card-form-group" style="width: 100%;">
+        <label class="card-form-label" for="input-device-name" style="text-align: left;">YOUR NAME / DEVICE</label>
+        <input class="card-form-input" id="input-device-name" type="text" placeholder="Your Name">
+      </div>
+
+      <button class="btn-primary" id="btn-join-room" type="button" style="width: 100%; font-size: 1rem; padding: 15px;">
+        JOIN ROOM
+      </button>
+
+      <button class="btn-secondary" id="btn-cancel-join" type="button" style="width: 100%;">
+        Cancel
+      </button>
+
+      <div class="alert-toast" id="mic-gate-error" hidden></div>
     </section>
 
-    <!-- Audio level meter -->
-    <section class="card pad" aria-label="Input level">
-      <div class="meter-title"><span>Input level</span><span id="level-db">-</span></div>
-      <canvas id="level-meter" width="600" height="88"></canvas>
+    <!-- ================= VIEW 3: WAITING FOR HOST APPROVAL ================= -->
+    <section class="glass-card waiting-approval-card mobile-view" id="view-waiting-approval" hidden>
+      <div class="pulsing-phone-icon">
+        <svg class="svg-icon xl" viewBox="0 0 24 24">
+          <rect width="14" height="20" x="5" y="2" rx="2"/>
+          <line x1="12" x2="12.01" y1="18" y2="18"/>
+        </svg>
+      </div>
+      <span class="status-badge" id="approval-status-badge" style="border-color: var(--border-hover);">
+        <span class="status-dot"></span>
+        <span id="approval-status-text">REQUEST SENT</span>
+      </span>
+
+      <h3 style="font-size: 1.35rem; font-weight: 800; color: var(--text-primary);">Waiting for Host Approval</h3>
+      <p style="color: var(--text-secondary); font-size: 0.9rem; max-width: 320px;">
+        Your microphone is ready. Please wait for the host laptop to accept your request.
+      </p>
+
+      <div class="room-details-table" style="margin-top: 10px;">
+        <div class="room-details-row">
+          <span>Room Code</span>
+          <strong id="waiting-room-id">MIC-4821</strong>
+        </div>
+      </div>
+
+      <button class="btn-secondary btn-danger" id="btn-cancel-request" type="button" style="margin-top: 8px;">
+        Cancel Request
+      </button>
     </section>
 
-    <div id="error-message" class="error" role="alert" hidden></div>
-    <p class="note" id="wake-note"></p>
-  </main>
+    <!-- ================= VIEW 4: REJECTED SCREEN ================= -->
+    <section class="glass-card waiting-approval-card mobile-view" id="view-rejected" hidden>
+      <div style="width: 56px; height: 56px; border-radius: 50%; background: rgba(239, 68, 68, 0.2); border: 1px solid var(--accent-red); display: flex; align-items: center; justify-content: center; color: var(--accent-red);">
+        <svg class="svg-icon lg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="4.93" x2="19.07" y1="4.93" y2="19.07"/></svg>
+      </div>
+      <h3 style="font-size: 1.3rem; font-weight: 800; color: var(--accent-red);">Connection Request Declined</h3>
+      <p style="color: var(--text-secondary); font-size: 0.9rem;">
+        The meeting host declined your microphone connection request.
+      </p>
+
+      <button class="btn-primary" id="btn-retry-join" type="button" style="width: 100%; margin-top: 12px;">
+        TRY AGAIN
+      </button>
+    </section>
+
+    <!-- ================= VIEW 5: MAIN MICROPHONE LIVE CONTROL ================= -->
+    <section class="mobile-view" id="view-mic-console" hidden>
+      <!-- Big Circular Microphone Toggle -->
+      <div class="glass-card mic-hero-container highlight">
+        <button class="big-mic-btn" id="mic-circle-btn" type="button" aria-pressed="false">
+          <svg class="svg-icon" id="mic-circle-icon" viewBox="0 0 24 24">
+            <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+            <line x1="12" x2="12" y1="19" y2="22"/>
+          </svg>
+          <span class="mic-label" id="mic-circle-label">MIC OFF</span>
+        </button>
+
+        <span class="status-badge" id="mic-live-badge">
+          <span class="status-dot"></span>
+          <span id="mic-live-text">STANDBY</span>
+        </span>
+      </div>
+
+      <!-- Push To Talk Button -->
+      <button class="btn-ptt" id="ptt-button" type="button">
+        <span>PUSH TO TALK</span>
+        <small>Hold to speak, release to mute</small>
+      </button>
+
+      <!-- Audio Input Meter -->
+      <div class="glass-card" style="padding: 16px;">
+        <div style="display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">
+          <span style="display: flex; align-items: center; gap: 6px;">
+            <svg class="svg-icon sm" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            <span>INPUT LEVEL</span>
+          </span>
+          <span style="font-family: var(--font-mono); color: var(--accent-mint);" id="level-db">- dBFS</span>
+        </div>
+        <canvas id="level-meter"></canvas>
+      </div>
+
+      <!-- Quick Actions -->
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+        <button class="btn-secondary" id="mute-btn" type="button" aria-pressed="false">
+          <svg class="svg-icon sm" viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" x2="1" y1="1" y2="23"/></svg>
+          <span id="mute-btn-text">MUTE</span>
+        </button>
+        <button class="btn-secondary btn-danger" id="btn-leave-room" type="button">
+          <svg class="svg-icon sm" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>
+          <span>LEAVE ROOM</span>
+        </button>
+      </div>
+
+      <!-- Connection Details Card -->
+      <div class="glass-card" style="padding: 16px;">
+        <div class="room-details-row">
+          <span>Connection</span>
+          <strong style="color: var(--accent-green-glow);" id="mobile-conn-state">Connected</strong>
+        </div>
+        <div class="room-details-row">
+          <span>Host</span>
+          <strong>Laptop</strong>
+        </div>
+        <div class="room-details-row">
+          <span>Latency</span>
+          <strong id="mobile-stat-rtt">- ms</strong>
+        </div>
+      </div>
+
+      <p class="note" id="wake-note" style="font-size: 0.78rem; color: var(--text-muted); text-align: center; margin-top: 4px;"></p>
+    </section>
+
+    <!-- Global Error Banner -->
+    <div class="alert-toast" id="error-message" hidden></div>
+  </div>
 
   <script src="common.js"></script>
   <script src="app.js"></script>

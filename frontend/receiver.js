@@ -1,39 +1,89 @@
 'use strict';
 
 /**
- * Receiver (laptop).
- * Answers the phone's WebRTC offer and plays the incoming audio through the
- * laptop's default output (the 3.5 mm jack that feeds the amplifier).
+ * Receiver (Host Laptop).
+ * Provides Meeting Host & Join Room flow with QR Code generation,
+ * join approval (Accept / Reject), and live WebRTC audio reception.
  */
 (() => {
   const $ = (id) => document.getElementById(id);
+
   const el = {
-    gate: $('gate'),
-    startBtn: $('start-btn'),
-    tally: $('tally'),
-    tallyWord: $('tally-word'),
-    tallyHint: $('tally-hint'),
-    conn: $('connection-status'),
-    sender: $('sender-status'),
-    network: $('network-quality'),
-    canvas: $('rx-meter'),
+    // Views
+    viewWelcome: $('view-welcome'),
+    viewLobby: $('view-lobby'),
+    viewConsole: $('view-console'),
+
+    // Top Header
+    topSubtitle: $('top-subtitle'),
+    hostNetworkBadge: $('host-network-badge'),
+    hostNetworkStatus: $('host-network-status'),
+
+    // Landing Model Inputs & Buttons
+    inputHostRoomName: $('input-host-room-name'),
+    btnLaunchHostRoom: $('btn-launch-host-room'),
+    inputJoinDisplayName: $('input-join-display-name'),
+    inputJoinMeetingId: $('input-join-meeting-id'),
+    btnEnterJoinRoom: $('btn-enter-join-room'),
+
+    // Lobby Screen
+    lobbyQrCanvas: $('lobby-qr-canvas'),
+    lobbyRoomCode: $('lobby-room-code'),
+    btnCopyCode: $('btn-copy-code'),
+    btnCopyLink: $('btn-copy-link'),
+    lobbyDeviceStatusBadge: $('lobby-device-status-badge'),
+    lobbyDeviceStatusText: $('lobby-device-status-text'),
+    lobbyEmptyState: $('lobby-empty-state'),
+    metaRoomId: $('meta-room-id'),
+    btnLeaveLobby: $('btn-leave-lobby'),
+
+    // Slide-in Join Request Modal
+    joinRequestToast: $('join-request-toast'),
+    requestDeviceDesc: $('request-device-desc'),
+    btnAcceptRequest: $('btn-accept-request'),
+    btnRejectRequest: $('btn-reject-request'),
+
+    // Console Screen
+    consoleDeviceName: $('console-device-name'),
+    consoleDeviceSub: $('console-device-sub'),
+    consoleDeviceAvatar: $('console-device-avatar'),
+    consoleAudioStateBadge: $('console-audio-state-badge'),
+    consoleAudioStateText: $('console-audio-state-text'),
+    btnShowQrAgain: $('btn-show-qr-again'),
+    btnEndSession: $('btn-end-session'),
+    hostWaveformCanvas: $('host-waveform-canvas'),
+    rxMeter: $('rx-meter'),
     levelDb: $('level-db'),
-    volume: $('volume'),
-    volumeOut: $('volume-out'),
-    mute: $('mute-btn'),
-    tone: $('tone-btn'),
+
+    // Stats
     statRtt: $('stat-rtt'),
     statLoss: $('stat-loss'),
     statJitter: $('stat-jitter'),
-    statBuffer: $('stat-buffer'),
     statBitrate: $('stat-bitrate'),
-    unlock: $('unlock-btn'),
-    error: $('error-message'),
+    statBuffer: $('stat-buffer'),
+    connStatus: $('connection-status'),
+
+    // Audio Output Controls
+    volume: $('volume'),
+    volumeOut: $('volume-out'),
+    muteBtn: $('mute-btn'),
+    toneBtn: $('tone-btn'),
+    unlockBtn: $('unlock-btn'),
     audio: $('remote-audio'),
+    error: $('error-message'),
   };
 
+  // State
+  let currentRoomId = WM.generateRoomId();
+  let currentRoomName = 'Main Hall Audio';
+  let hostLanIp = window.location.hostname;
+  let hostPort = window.location.port || (window.location.protocol === 'https:' ? '443' : '80');
+  let currentJoinUrl = '';
+  let pendingDeviceRequest = null;
+
+  // Audio & WebRTC State
   let audioCtx = null;
-  let signaling = null;
+  let signalling = null;
   let pc = null;
   let currentSid = null;
   let analyser = null;
@@ -42,48 +92,142 @@
   let warmupTimer = null;
   let lastStats = null;
   let peerPresent = false;
+  let receiving = false;
   let requestTimer = null;
-  let receiving = false; // audio above the noise floor right now
 
   const queue = WM.serialQueue();
 
-  // ------------------------------------------------------------------- UI
+  // ------------------------------------------------------------------- VIEW SWITCHING
+  function showView(view) {
+    el.viewWelcome.hidden = view !== 'welcome';
+    el.viewLobby.hidden = view !== 'lobby';
+    el.viewConsole.hidden = view !== 'console';
+  }
+
   function showError(text) {
+    if (!text) {
+      el.error.hidden = true;
+      el.error.textContent = '';
+      return;
+    }
     el.error.textContent = text;
-    el.error.hidden = !text;
+    el.error.hidden = false;
   }
 
-  function setConnState(state) {
-    el.conn.textContent = state;
-    el.conn.className = 'pill ' + state;
-    updateTally();
-  }
-
-  function setSender(text, level) {
-    el.sender.textContent = text;
-    el.sender.className = 'value' + (level ? ' ' + level : '');
-    updateTally();
-  }
-
-  function updateTally() {
-    const connected = pc && pc.connectionState === 'connected';
-    el.tally.classList.toggle('live', !!connected && receiving);
-    if (!peerPresent) {
-      el.tallyWord.textContent = 'Waiting';
-      el.tallyHint.textContent = 'No phone connected';
-    } else if (!connected) {
-      el.tallyWord.textContent = 'Connecting';
-      el.tallyHint.textContent = 'Phone found, setting up audio';
-    } else if (receiving) {
-      el.tallyWord.textContent = 'Receiving';
-      el.tallyHint.textContent = 'Audio is playing';
-    } else {
-      el.tallyWord.textContent = 'Ready';
-      el.tallyHint.textContent = 'Phone mic is silent';
+  // ----------------------------------------------------------- HOST IP DETECTION & QR
+  async function fetchHostInfo() {
+    try {
+      const res = await fetch('/api/info');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.ips && data.ips.length > 0) {
+          hostLanIp = data.ips[0];
+        }
+        if (data.port) {
+          hostPort = data.port;
+        }
+      }
+    } catch {
+      // Fallback to location.hostname
     }
   }
 
-  // --------------------------------------------------------------- WebRTC
+  function generateJoinUrl() {
+    const protocol = window.location.protocol;
+    const portStr = hostPort ? `:${hostPort}` : '';
+    return `${protocol}//${hostLanIp}${portStr}/?room=${encodeURIComponent(currentRoomId)}&name=${encodeURIComponent(currentRoomName)}`;
+  }
+
+  function renderLobbyQr() {
+    currentJoinUrl = generateJoinUrl();
+    el.lobbyRoomCode.textContent = currentRoomId;
+    el.metaRoomId.textContent = currentRoomId;
+
+    if (window.OfflineQRCode && el.lobbyQrCanvas) {
+      window.OfflineQRCode.render(el.lobbyQrCanvas, currentJoinUrl, {
+        size: 220,
+        margin: 2,
+        darkColor: '#051F20',
+        lightColor: '#ffffff',
+      });
+    }
+  }
+
+  // ----------------------------------------------------------------- AUDIO PIPELINE
+  async function ensureAudioContext() {
+    if (!audioCtx) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (audioCtx.state === 'suspended') {
+      try {
+        await audioCtx.resume();
+      } catch {}
+    }
+    if (!analyser && audioCtx) {
+      analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 1024;
+      setupVisualizers();
+    }
+  }
+
+  function setupVisualizers() {
+    if (!analyser) return;
+    let holdUntil = 0;
+
+    WM.createMeter(analyser, el.rxMeter, el.levelDb, (db) => {
+      const t = performance.now();
+      if (db > -55) holdUntil = t + 600;
+      const now = t < holdUntil;
+      if (now !== receiving) {
+        receiving = now;
+        updateLiveIndicator();
+      }
+    });
+
+    if (el.hostWaveformCanvas) {
+      WM.createWaveformVisualizer(analyser, el.hostWaveformCanvas);
+    }
+  }
+
+  function attachMeter(stream) {
+    if (!audioCtx || !analyser) return;
+    if (meterSource) {
+      try { meterSource.disconnect(); } catch {}
+    }
+    meterSource = audioCtx.createMediaStreamSource(stream);
+    meterSource.connect(analyser);
+  }
+
+  function updateLiveIndicator() {
+    const connected = pc && pc.connectionState === 'connected';
+    if (!connected) {
+      el.consoleAudioStateBadge.className = 'status-badge amber';
+      el.consoleAudioStateText.textContent = 'CONNECTING...';
+      el.consoleDeviceAvatar.className = 'device-avatar';
+      return;
+    }
+
+    if (receiving) {
+      el.consoleAudioStateBadge.className = 'status-badge';
+      el.consoleAudioStateText.textContent = 'RECEIVING AUDIO';
+      el.consoleDeviceAvatar.className = 'device-avatar live';
+    } else {
+      el.consoleAudioStateBadge.className = 'status-badge blue';
+      el.consoleAudioStateText.textContent = 'STANDBY (SILENT)';
+      el.consoleDeviceAvatar.className = 'device-avatar';
+    }
+  }
+
+  async function playAudio() {
+    try {
+      await el.audio.play();
+      el.unlockBtn.hidden = true;
+    } catch {
+      el.unlockBtn.hidden = false;
+    }
+  }
+
+  // ------------------------------------------------------------- WebRTC HANDLING
   function closePc() {
     stopStats();
     clearTimeout(requestTimer);
@@ -93,93 +237,69 @@
     if (pc) {
       const old = pc;
       pc = null;
-      try {
-        old.close();
-      } catch {
-        /* already closed */
-      }
+      try { old.close(); } catch {}
     }
     el.audio.srcObject = null;
-    el.network.textContent = '-';
-    el.network.className = 'value';
-    ['statRtt', 'statLoss', 'statJitter', 'statBuffer', 'statBitrate'].forEach((k) => (el[k].textContent = '-'));
-  }
-
-  async function playAudio() {
-    try {
-      await el.audio.play();
-      el.unlock.hidden = true;
-    } catch {
-      el.unlock.hidden = false; // autoplay blocked: needs one click
-    }
-  }
-
-  // One analyser + one draw loop for the page's lifetime; only the source is swapped per call.
-  function setupMeter() {
-    analyser = audioCtx.createAnalyser();
-    analyser.fftSize = 1024; // analysis only: the <audio> element does the actual playback
-    let holdUntil = 0;
-    WM.createMeter(analyser, el.canvas, el.levelDb, (db) => {
-      const t = performance.now();
-      if (db > -55) holdUntil = t + 600; // hold briefly so the status doesn't flicker between words
-      const now = t < holdUntil;
-      if (now !== receiving) {
-        receiving = now;
-        updateTally();
-      }
-    });
-  }
-
-  function attachMeter(stream) {
-    if (!audioCtx || !analyser) return;
-    if (meterSource) meterSource.disconnect();
-    meterSource = audioCtx.createMediaStreamSource(stream);
-    meterSource.connect(analyser);
+    el.statRtt.textContent = '-';
+    el.statLoss.textContent = '-';
+    el.statJitter.textContent = '-';
+    el.statBuffer.textContent = '-';
+    el.statBitrate.textContent = '-';
+    el.connStatus.textContent = 'Disconnected';
+    el.connStatus.style.color = 'var(--text-dim)';
+    updateLiveIndicator();
   }
 
   async function handleOffer(msg) {
     closePc();
+    await ensureAudioContext();
+
     const thisPc = new RTCPeerConnection(WM.RTC_CONFIG);
     pc = thisPc;
     currentSid = msg.sid;
-    setConnState('new');
+    el.connStatus.textContent = 'Connecting...';
+    el.connStatus.style.color = 'var(--accent-amber)';
 
     thisPc.ontrack = (event) => {
       if (pc !== thisPc) return;
       const stream = event.streams[0] || new MediaStream([event.track]);
       el.audio.srcObject = stream;
       playAudio();
-      // Keep the playout buffer small for low latency (Chrome 114+).
+
       if ('jitterBufferTarget' in event.receiver) {
         try {
           event.receiver.jitterBufferTarget = WM.CONFIG.jitterBufferTargetMs;
-        } catch {
-          /* unsupported value */
-        }
+        } catch {}
       }
       attachMeter(stream);
     };
 
     thisPc.onicecandidate = (event) => {
-      if (event.candidate) signaling.send({ type: 'ice-candidate', sid: msg.sid, candidate: event.candidate });
+      if (event.candidate) {
+        signalling.send({ type: 'ice-candidate', sid: msg.sid, candidate: event.candidate });
+      }
     };
 
     thisPc.onconnectionstatechange = () => {
       if (pc !== thisPc) return;
       const state = thisPc.connectionState;
-      setConnState(state);
       if (state === 'connected') {
         clearTimeout(requestTimer);
         requestTimer = null;
         showError('');
+        el.connStatus.textContent = 'Connected';
+        el.connStatus.style.color = 'var(--accent-green-glow)';
         startStats();
+        updateLiveIndicator();
       } else if (state === 'disconnected' || state === 'failed') {
         stopStats();
-        // The phone normally re-offers on its own; ask it to if it hasn't.
+        el.connStatus.textContent = state;
+        el.connStatus.style.color = 'var(--accent-red)';
+        updateLiveIndicator();
         clearTimeout(requestTimer);
         requestTimer = setTimeout(() => {
           if (peerPresent && pc === thisPc && thisPc.connectionState !== 'connected') {
-            signaling.send({ type: 'request-offer' });
+            signalling.send({ type: 'request-offer' });
           }
         }, state === 'failed' ? 500 : WM.CONFIG.reconnectDelayMs + 1000);
       }
@@ -189,19 +309,18 @@
       await thisPc.setRemoteDescription({ type: 'offer', sdp: WM.tuneOpus(msg.sdp) });
       const answer = await thisPc.createAnswer();
       await thisPc.setLocalDescription({ type: 'answer', sdp: WM.tuneOpus(answer.sdp) });
-      signaling.send({ type: 'answer', sid: msg.sid, sdp: thisPc.localDescription.sdp });
-      setConnState('connecting');
+      signalling.send({ type: 'answer', sid: msg.sid, sdp: thisPc.localDescription.sdp });
     } catch (err) {
-      if (pc !== thisPc) return; // superseded or closed while answering: not an error
+      if (pc !== thisPc) return;
       throw err;
     }
   }
 
-  // ------------------------------------------------------- network stats
+  // ------------------------------------------------------- NETWORK & STREAM STATS
   function startStats() {
     stopStats();
-    pollStats(); // baseline sample
-    warmupTimer = setTimeout(pollStats, 800); // first rates appear after ~1 s instead of ~4 s
+    pollStats();
+    warmupTimer = setTimeout(pollStats, 800);
     statsTimer = setInterval(pollStats, WM.CONFIG.statsIntervalMs);
   }
 
@@ -242,7 +361,7 @@
         const dRecv = now.received - lastStats.received;
         const dLost = Math.max(0, now.lost - lastStats.lost);
         if (dRecv + dLost > 0) lossPct = (dLost / (dRecv + dLost)) * 100;
-        kbps = ((now.bytes - lastStats.bytes) * 8) / (now.t - lastStats.t); // bits per ms == kbit/s
+        kbps = ((now.bytes - lastStats.bytes) * 8) / (now.t - lastStats.t);
         const dCount = now.jbCount - lastStats.jbCount;
         if (dCount > 0) bufferMs = ((now.jbDelay - lastStats.jbDelay) / dCount) * 1000;
       }
@@ -256,33 +375,36 @@
       if (jitterMs !== null) el.statJitter.textContent = jitterMs.toFixed(1) + ' ms';
       if (bufferMs !== null) el.statBuffer.textContent = Math.round(bufferMs) + ' ms';
       if (kbps !== null) el.statBitrate.textContent = kbps.toFixed(0) + ' kbps';
-
-      const q = WM.quality(rttMs, lossPct);
-      el.network.textContent = q.text;
-      el.network.className = 'value ' + q.level;
     } catch {
-      /* connection closed while polling */
+      /* closed while polling */
     }
   }
 
-  // ------------------------------------------------------------ signaling
+  // ------------------------------------------------------------ SIGNALING HANDLING
   function onSignalingMessage(msg) {
     switch (msg.type) {
       case 'joined':
         peerPresent = msg.peerPresent;
-        setSender(peerPresent ? 'Phone online' : 'Waiting for phone', peerPresent ? 'good' : '');
         break;
 
       case 'peer-joined':
         peerPresent = true;
-        setSender('Phone online', 'good');
         break;
 
       case 'peer-left':
         peerPresent = false;
         closePc();
-        setConnState('new');
-        setSender('Phone disconnected', 'warn');
+        el.joinRequestToast.hidden = true;
+        pendingDeviceRequest = null;
+        el.lobbyDeviceStatusText.textContent = 'Waiting for microphone...';
+        el.lobbyDeviceStatusBadge.className = 'status-badge amber';
+        break;
+
+      case 'join-request':
+        // Mobile scanned QR and wants to join
+        pendingDeviceRequest = msg;
+        el.requestDeviceDesc.textContent = `${msg.deviceName || 'Mobile Device'} • Local Network`;
+        el.joinRequestToast.hidden = false;
         break;
 
       case 'offer':
@@ -291,7 +413,7 @@
             await handleOffer(msg);
           } catch (err) {
             console.error(err);
-            showError('Could not answer the phone: ' + err.message);
+            showError('Could not answer device offer: ' + err.message);
           }
         });
         break;
@@ -302,35 +424,152 @@
           try {
             await pc.addIceCandidate(msg.candidate);
           } catch (err) {
-            console.warn('ICE candidate rejected:', err);
+            console.warn('ICE candidate error:', err);
           }
         });
         break;
 
       case 'replaced':
         closePc();
-        setConnState('closed');
-        showError('Another receiver page took over. Close the other one, then reload this page.');
+        showError('Another receiver page took over. Close other instances and refresh.');
         break;
     }
   }
 
-  // --------------------------------------------------------------- output
-  function setupControls() {
+  function startSignaling() {
+    if (signalling && signalling.isAlive()) return;
+
+    signalling = new WM.Signaling('receiver', {
+      isConnected: () => !!pc && pc.connectionState === 'connected',
+      onClose: () => {
+        peerPresent = false;
+      },
+      onMessage: onSignalingMessage,
+    });
+    signalling.connect();
+  }
+
+  // ------------------------------------------------------------- JOIN APPROVAL / REJECT
+  function acceptJoinRequest() {
+    if (!pendingDeviceRequest) return;
+    el.joinRequestToast.hidden = true;
+
+    // Send approved response to mobile
+    signalling.send({
+      type: 'join-response',
+      approved: true,
+      roomId: currentRoomId,
+      roomName: currentRoomName,
+    });
+
+    const deviceName = pendingDeviceRequest.deviceName || 'Mobile Microphone';
+    el.consoleDeviceName.textContent = deviceName;
+    el.lobbyDeviceStatusText.textContent = `Connected: ${deviceName}`;
+    el.lobbyDeviceStatusBadge.className = 'status-badge';
+
+    // Transition to main console
+    showView('console');
+    el.topSubtitle.textContent = `ROOM: ${currentRoomId} • ${currentRoomName}`;
+    el.hostNetworkStatus.textContent = 'SESSION ACTIVE';
+    el.hostNetworkBadge.className = 'status-badge';
+  }
+
+  function rejectJoinRequest() {
+    if (!pendingDeviceRequest) return;
+    el.joinRequestToast.hidden = true;
+
+    // Send rejected response to mobile
+    signalling.send({
+      type: 'join-response',
+      approved: false,
+      roomId: currentRoomId,
+    });
+
+    pendingDeviceRequest = null;
+  }
+
+  // ------------------------------------------------------------- UI INTERACTIONS
+  function setupEvents() {
+    // Welcome View Model Actions
+    if (el.btnLaunchHostRoom) {
+      el.btnLaunchHostRoom.addEventListener('click', async () => {
+        await ensureAudioContext();
+        currentRoomName = (el.inputHostRoomName && el.inputHostRoomName.value.trim()) || 'Main Hall Audio (Host)';
+        currentRoomId = WM.generateRoomId();
+        showView('lobby');
+        el.topSubtitle.textContent = `ROOM: ${currentRoomId} • ${currentRoomName}`;
+        el.hostNetworkStatus.textContent = 'WAITING FOR DEVICE';
+        el.hostNetworkBadge.className = 'status-badge amber';
+
+        renderLobbyQr();
+        startSignaling();
+      });
+    }
+
+    if (el.btnEnterJoinRoom) {
+      el.btnEnterJoinRoom.addEventListener('click', () => {
+        const name = (el.inputJoinDisplayName && el.inputJoinDisplayName.value.trim()) || '';
+        const room = (el.inputJoinMeetingId && el.inputJoinMeetingId.value.trim().toUpperCase()) || '';
+        const params = new URLSearchParams();
+        if (room) params.set('room', room);
+        if (name) params.set('name', name);
+        window.location.href = `/?${params.toString()}`;
+      });
+    }
+
+    // Lobby View
+    el.btnCopyCode.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(currentRoomId);
+        el.btnCopyCode.innerHTML = '<svg class="svg-icon sm" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg> <span>Copied!</span>';
+        setTimeout(() => {
+          el.btnCopyCode.innerHTML = '<svg class="svg-icon sm" viewBox="0 0 24 24"><rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg> <span>Copy Room Code</span>';
+        }, 2000);
+      } catch {
+        prompt('Room Code:', currentRoomId);
+      }
+    });
+
+    el.btnCopyLink.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(currentJoinUrl);
+        el.btnCopyLink.innerHTML = '<svg class="svg-icon sm" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg> <span>Copied!</span>';
+        setTimeout(() => {
+          el.btnCopyLink.innerHTML = '<svg class="svg-icon sm" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> <span>Copy Join Link</span>';
+        }, 2000);
+      } catch {
+        prompt('Join Link:', currentJoinUrl);
+      }
+    });
+
+    el.btnLeaveLobby.addEventListener('click', () => {
+      closePc();
+      showView('welcome');
+      el.topSubtitle.textContent = 'Offline Meeting Audio System';
+      el.hostNetworkStatus.textContent = 'LOCAL NETWORK';
+      el.hostNetworkBadge.className = 'status-badge';
+    });
+
+    // Join Request Modal
+    el.btnAcceptRequest.addEventListener('click', acceptJoinRequest);
+    el.btnRejectRequest.addEventListener('click', rejectJoinRequest);
+
+    // Audio Output Controls
     el.volume.addEventListener('input', () => {
       el.audio.volume = el.volume.value / 100;
       el.volumeOut.textContent = el.volume.value + '%';
     });
 
-    el.mute.addEventListener('click', () => {
+    el.muteBtn.addEventListener('click', () => {
       el.audio.muted = !el.audio.muted;
-      el.mute.textContent = el.audio.muted ? 'UNMUTE OUTPUT' : 'MUTE OUTPUT';
-      el.mute.classList.toggle('active', el.audio.muted);
-      el.mute.setAttribute('aria-pressed', String(el.audio.muted));
+      el.muteBtn.innerHTML = el.audio.muted
+        ? '<svg class="svg-icon sm" viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" x2="1" y1="1" y2="23"/></svg> <span>UNMUTE OUTPUT</span>'
+        : '<svg class="svg-icon sm" viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg> <span>MUTE OUTPUT</span>';
+      el.muteBtn.classList.toggle('btn-danger', el.audio.muted);
     });
 
-    // One second of 440 Hz at low level: check the AUX cable and amplifier without needing the phone.
-    el.tone.addEventListener('click', () => {
+    el.toneBtn.addEventListener('click', async () => {
+      await ensureAudioContext();
       if (!audioCtx) return;
       const osc = audioCtx.createOscillator();
       const gain = audioCtx.createGain();
@@ -346,28 +585,29 @@
       osc.stop(t + 1.05);
     });
 
-    el.unlock.addEventListener('click', playAudio);
-  }
+    el.unlockBtn.addEventListener('click', playAudio);
 
-  // ----------------------------------------------------------------- start
-  async function start() {
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    if (audioCtx.state === 'suspended') await audioCtx.resume();
-    el.gate.hidden = true;
-    setupMeter();
-
-    signaling = new WM.Signaling('receiver', {
-      isConnected: () => !!pc && pc.connectionState === 'connected',
-      onClose: () => {
-        peerPresent = false;
-        setSender('Signaling offline, retrying...', 'warn');
-      },
-      onMessage: onSignalingMessage,
+    el.btnShowQrAgain.addEventListener('click', () => {
+      showView('lobby');
+      renderLobbyQr();
     });
-    signaling.connect();
+
+    el.btnEndSession.addEventListener('click', () => {
+      closePc();
+      if (signalling) {
+        signalling.send({ type: 'leave-room', roomId: currentRoomId });
+      }
+      showView('lobby');
+      renderLobbyQr();
+    });
   }
 
-  el.startBtn.addEventListener('click', start);
-  setupControls();
-  updateTally();
+  // Initialization
+  async function init() {
+    await fetchHostInfo();
+    setupEvents();
+    showView('welcome');
+  }
+
+  init();
 })();

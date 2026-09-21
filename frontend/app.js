@@ -1,96 +1,137 @@
 'use strict';
 
 /**
- * Transmitter (phone).
- * Captures the microphone and sends it to the laptop over WebRTC.
- * The phone is always the WebRTC "offerer"; the laptop page answers.
+ * Transmitter (Mobile Phone).
+ * Captures microphone upon approval and streams live audio over WebRTC to host laptop.
  */
 (() => {
   const $ = (id) => document.getElementById(id);
+
   const el = {
-    gate: $('gate'),
-    gateError: $('gate-error'),
-    startBtn: $('start-btn'),
-    tally: $('tally'),
-    tallyWord: $('tally-word'),
-    tallyHint: $('tally-hint'),
-    conn: $('connection-status'),
-    receiver: $('receiver-status'),
-    network: $('network-quality'),
-    permission: $('mic-permission'),
-    micToggle: $('mic-toggle'),
-    ptt: $('ptt-button'),
-    mute: $('mute-btn'),
-    reconnect: $('reconnect-btn'),
-    canvas: $('level-meter'),
+    // Top Bar
+    topRoleSub: $('top-role-sub'),
+    mobileTopStatus: $('mobile-top-status'),
+    mobileTopStatusText: $('mobile-top-status-text'),
+
+    // View 1: Manual Code Entry
+    viewEnterCode: $('view-enter-code'),
+    inputManualRoom: $('input-manual-room'),
+    inputDeviceNameManual: $('input-device-name-manual'),
+    btnSubmitManualCode: $('btn-submit-manual-code'),
+
+    // View 2: Join Preview
+    viewJoinPreview: $('view-join-preview'),
+    previewRoomTitle: $('preview-room-title'),
+    previewRoomName: $('preview-room-name'),
+    previewRoomId: $('preview-room-id'),
+    inputDeviceName: $('input-device-name'),
+    btnJoinRoom: $('btn-join-room'),
+    btnCancelJoin: $('btn-cancel-join'),
+    micGateError: $('mic-gate-error'),
+
+    // View 3: Waiting Approval
+    viewWaitingApproval: $('view-waiting-approval'),
+    approvalStatusBadge: $('approval-status-badge'),
+    approvalStatusText: $('approval-status-text'),
+    waitingRoomId: $('waiting-room-id'),
+    btnCancelRequest: $('btn-cancel-request'),
+
+    // View 4: Rejected
+    viewRejected: $('view-rejected'),
+    btnRetryJoin: $('btn-retry-join'),
+
+    // View 5: Mic Live Console
+    viewMicConsole: $('view-mic-console'),
+    micCircleBtn: $('mic-circle-btn'),
+    micCircleSymbol: $('mic-circle-symbol'),
+    micCircleLabel: $('mic-circle-label'),
+    micLiveBadge: $('mic-live-badge'),
+    micLiveText: $('mic-live-text'),
+    pttButton: $('ptt-button'),
+    levelMeter: $('level-meter'),
     levelDb: $('level-db'),
-    error: $('error-message'),
+    muteBtn: $('mute-btn'),
+    btnLeaveRoom: $('btn-leave-room'),
+    mobileConnState: $('mobile-conn-state'),
+    mobileStatRtt: $('mobile-stat-rtt'),
     wakeNote: $('wake-note'),
+
+    error: $('error-message'),
   };
+
+  // State
+  let currentRoomId = '';
+  let currentRoomName = 'Meeting Room';
+  let currentDeviceName = WM.detectDeviceName();
 
   let stream = null;
   let audioTrack = null;
   let audioCtx = null;
   let pc = null;
-  let sid = null; // id of the current call; stale ICE/answers are ignored
+  let sid = null;
   let signaling = null;
   let peerPresent = false;
   let reconnectTimer = null;
   let statsTimer = null;
   let wakeLock = null;
 
-  // Mic state. The track is live only when: not muted AND (latched ON OR PTT held).
+  // Mic state
   let latched = false;
   let pttHeld = false;
   let muted = false;
 
-  // ------------------------------------------------------------------- UI
+  const queue = WM.serialQueue();
+
+  // ------------------------------------------------------------------- VIEW SWITCHING
+  function showView(view) {
+    el.viewEnterCode.hidden = view !== 'enter-code';
+    el.viewJoinPreview.hidden = view !== 'preview';
+    el.viewWaitingApproval.hidden = view !== 'waiting';
+    el.viewRejected.hidden = view !== 'rejected';
+    el.viewMicConsole.hidden = view !== 'console';
+  }
+
   function showError(text) {
+    if (!text) {
+      el.error.hidden = true;
+      el.error.textContent = '';
+      return;
+    }
     el.error.textContent = text;
-    el.error.hidden = !text;
+    el.error.hidden = false;
   }
 
-  function setConnState(state) {
-    el.conn.textContent = state;
-    el.conn.className = 'pill ' + state;
-  }
-
-  function setReceiver(text, level) {
-    el.receiver.textContent = text;
-    el.receiver.className = 'value' + (level ? ' ' + level : '');
-  }
-
+  // ------------------------------------------------------------------- MIC CONTROL
   function applyMicState() {
     const live = !muted && (latched || pttHeld);
     if (audioTrack) audioTrack.enabled = live;
 
-    el.micToggle.textContent = latched ? 'MIC ON' : 'MIC OFF';
-    el.micToggle.classList.toggle('btn-on', latched);
-    el.micToggle.classList.toggle('btn-off', !latched);
-    el.micToggle.setAttribute('aria-pressed', String(latched));
+    if (live) {
+      el.micCircleBtn.className = 'big-mic-btn active transmitting';
+      el.micCircleLabel.textContent = 'LIVE';
+      el.micLiveBadge.className = 'status-badge live';
+      el.micLiveText.textContent = 'TRANSMITTING';
+    } else if (muted) {
+      el.micCircleBtn.className = 'big-mic-btn';
+      el.micCircleLabel.textContent = 'MUTED';
+      el.micLiveBadge.className = 'status-badge amber';
+      el.micLiveText.textContent = 'MUTED';
+    } else {
+      el.micCircleBtn.className = 'big-mic-btn';
+      el.micCircleLabel.textContent = 'MIC OFF';
+      el.micLiveBadge.className = 'status-badge';
+      el.micLiveText.textContent = 'STANDBY';
+    }
 
-    el.ptt.classList.toggle('active', pttHeld && !muted);
-
-    el.mute.textContent = muted ? 'UNMUTE' : 'MUTE';
-    el.mute.classList.toggle('active', muted);
-    el.mute.setAttribute('aria-pressed', String(muted));
-
-    el.tally.classList.toggle('live', live);
-    el.tally.classList.toggle('muted', muted);
-    el.tallyWord.textContent = live ? 'Live' : muted ? 'Muted' : 'Standby';
-    el.tallyHint.textContent = live
-      ? pttHeld
-        ? 'Push to talk'
-        : 'Mic is on'
-      : muted
-        ? 'Tap Unmute to talk'
-        : 'Mic is off';
+    el.pttButton.classList.toggle('active', pttHeld && !muted);
+    const muteText = $('mute-btn-text');
+    if (muteText) muteText.textContent = muted ? 'UNMUTE' : 'MUTE';
+    el.muteBtn.classList.toggle('btn-danger', muted);
   }
 
-  // ----------------------------------------------------------- microphone
   async function initMicrophone() {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      throw Object.assign(new Error('insecure'), { name: 'InsecureContext' });
+      throw Object.assign(new Error('InsecureContext'), { name: 'InsecureContext' });
     }
     return navigator.mediaDevices.getUserMedia({
       audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
@@ -100,39 +141,36 @@
   function describeMicError(err) {
     switch (err.name) {
       case 'InsecureContext':
-        return 'This page is not secure, so the browser blocks the microphone. Open it with https:// (not http://).';
+        return 'Please access via HTTPS to enable microphone access.';
       case 'NotAllowedError':
-        return 'Microphone permission was denied. Tap the lock icon in the address bar, set Microphone to Allow, then tap Start again.';
+        return 'Microphone permission denied. Allow mic access in browser settings.';
       case 'NotFoundError':
-        return 'No microphone was found on this device.';
-      case 'NotReadableError':
-        return 'The microphone is being used by another app. Close it and tap Start again.';
+        return 'No microphone found on this device.';
       default:
         return 'Microphone error: ' + err.message;
     }
   }
 
-  // --------------------------------------------------------- level meter
   function setupAudioMeter() {
+    if (!audioCtx || !stream) return;
     const source = audioCtx.createMediaStreamSource(stream);
     const analyser = audioCtx.createAnalyser();
     analyser.fftSize = 1024;
-    source.connect(analyser); // deliberately NOT connected to speakers: no local echo
-    WM.createMeter(analyser, el.canvas, el.levelDb);
+    source.connect(analyser);
+    WM.createMeter(analyser, el.levelMeter, el.levelDb);
   }
 
-  // ------------------------------------------------------------- WebRTC
+  // ------------------------------------------------------------------- WebRTC CALL
   function closePc() {
     stopStats();
     if (pc) {
       const old = pc;
-      pc = null; // handlers check `pc !== thisPc`, so the old one goes quiet
-      try {
-        old.close();
-      } catch {
-        /* already closed */
-      }
+      pc = null;
+      try { old.close(); } catch {}
     }
+    el.mobileConnState.textContent = 'Disconnected';
+    el.mobileConnState.style.color = 'var(--text-dim)';
+    el.mobileStatRtt.textContent = '- ms';
   }
 
   async function limitBitrate(rtpSender) {
@@ -142,42 +180,51 @@
       params.encodings[0].maxBitrate = WM.CONFIG.opusBitrate;
       await rtpSender.setParameters(params);
     } catch (err) {
-      console.warn('Could not set max bitrate:', err);
+      console.warn('Could not limit bitrate:', err);
     }
   }
 
   async function startCall() {
-    if (!stream || !signaling || !signaling.isOpen()) return; // retried when signaling (re)connects
+    if (!stream || !signaling || !signaling.isOpen()) return;
     closePc();
 
     const thisSid = crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random();
     const thisPc = new RTCPeerConnection(WM.RTC_CONFIG);
     pc = thisPc;
     sid = thisSid;
-    setConnState('new');
+
+    el.mobileConnState.textContent = 'Connecting...';
+    el.mobileConnState.style.color = 'var(--accent-amber)';
 
     const transceiver = thisPc.addTransceiver(audioTrack, { direction: 'sendonly', streams: [stream] });
 
     thisPc.onconnectionstatechange = () => {
       if (pc !== thisPc) return;
       const state = thisPc.connectionState;
-      setConnState(state);
       if (state === 'connected') {
         clearTimeout(reconnectTimer);
         reconnectTimer = null;
         showError('');
+        el.mobileConnState.textContent = 'Connected';
+        el.mobileConnState.style.color = 'var(--accent-green-glow)';
         startStats();
       } else if (state === 'disconnected') {
         stopStats();
-        scheduleReconnect(WM.CONFIG.reconnectDelayMs); // may recover by itself; checked before rebuilding
+        el.mobileConnState.textContent = 'Reconnecting...';
+        el.mobileConnState.style.color = 'var(--accent-amber)';
+        scheduleReconnect(WM.CONFIG.reconnectDelayMs);
       } else if (state === 'failed') {
         stopStats();
+        el.mobileConnState.textContent = 'Connection Failed';
+        el.mobileConnState.style.color = 'var(--accent-red)';
         scheduleReconnect(500);
       }
     };
 
     thisPc.onicecandidate = (event) => {
-      if (event.candidate) signaling.send({ type: 'ice-candidate', sid: thisSid, candidate: event.candidate });
+      if (event.candidate) {
+        signaling.send({ type: 'ice-candidate', sid: thisSid, candidate: event.candidate });
+      }
     };
 
     try {
@@ -186,10 +233,9 @@
       await thisPc.setLocalDescription({ type: 'offer', sdp: WM.tuneOpus(offer.sdp) });
       signaling.send({ type: 'offer', sid: thisSid, sdp: thisPc.localDescription.sdp });
       limitBitrate(transceiver.sender);
-      setConnState('connecting');
     } catch (err) {
       console.error(err);
-      showError('Could not start the connection: ' + err.message);
+      showError('Connection error: ' + err.message);
       scheduleReconnect(WM.CONFIG.reconnectDelayMs);
     }
   }
@@ -198,13 +244,13 @@
     if (reconnectTimer) return;
     reconnectTimer = setTimeout(() => {
       reconnectTimer = null;
-      if (pc && pc.connectionState === 'connected') return; // recovered by itself
-      if (!peerPresent) return; // nothing to connect to; will start when the laptop joins
+      if (pc && pc.connectionState === 'connected') return;
+      if (!peerPresent) return;
       startCall();
     }, delay);
   }
 
-  // ------------------------------------------------------- network stats
+  // ------------------------------------------------------------- STATS POLLING
   function startStats() {
     stopStats();
     pollStats();
@@ -222,53 +268,59 @@
     try {
       const report = await current.getStats();
       let rtt = null;
-      let loss = null;
       report.forEach((r) => {
         if (r.type === 'remote-inbound-rtp' && (r.kind || r.mediaType) === 'audio') {
           if (typeof r.roundTripTime === 'number') rtt = r.roundTripTime * 1000;
-          if (typeof r.fractionLost === 'number') loss = r.fractionLost * 100;
         }
         if (rtt === null && r.type === 'candidate-pair' && r.nominated && typeof r.currentRoundTripTime === 'number') {
           rtt = r.currentRoundTripTime * 1000;
         }
       });
-      const q = WM.quality(rtt, loss);
-      const parts = [];
-      if (rtt !== null) parts.push(Math.round(rtt) + ' ms');
-      if (loss !== null) parts.push(loss.toFixed(1) + '% loss');
-      el.network.textContent = q.level === 'good' ? parts.join(', ') || 'Good' : q.text;
-      el.network.className = 'value ' + q.level;
+      if (rtt !== null) {
+        el.mobileStatRtt.textContent = Math.round(rtt) + ' ms';
+      }
     } catch {
-      /* connection closed while polling */
+      /* disconnected */
     }
   }
 
-  // ------------------------------------------------------------ signaling
-  const queue = WM.serialQueue();
-
+  // ------------------------------------------------------------ SIGNALING
   function onSignalingMessage(msg) {
     switch (msg.type) {
       case 'joined':
         peerPresent = msg.peerPresent;
-        setReceiver(peerPresent ? 'Laptop online' : 'Waiting for laptop', peerPresent ? 'good' : '');
-        // After a signaling blip, keep a healthy call running; otherwise (re)start it.
-        if (peerPresent && !(pc && pc.connectionState === 'connected')) queue(startCall);
+        // Automatically send join request once socket joins
+        signaling.send({
+          type: 'join-request',
+          roomId: currentRoomId,
+          deviceName: currentDeviceName,
+        });
         break;
 
       case 'peer-joined':
         peerPresent = true;
-        setReceiver('Laptop online', 'good');
-        // The laptop page just (re)loaded, unless it says its call is still up.
-        if (!(pc && pc.connectionState === 'connected' && msg.connected)) queue(startCall);
         break;
 
       case 'peer-left':
         peerPresent = false;
-        setReceiver('Laptop left, waiting', 'warn');
-        clearTimeout(reconnectTimer);
-        reconnectTimer = null;
         closePc();
-        setConnState('new');
+        break;
+
+      case 'join-response':
+        if (msg.approved) {
+          // Host Accepted!
+          showView('console');
+          el.topRoleSub.textContent = `ROOM: ${currentRoomId}`;
+          el.mobileTopStatusText.textContent = 'CONNECTED TO HOST';
+          el.mobileTopStatus.className = 'status-badge';
+          applyMicState();
+          requestWakeLock();
+          queue(startCall);
+        } else {
+          // Host Rejected
+          showView('rejected');
+          closePc();
+        }
         break;
 
       case 'request-offer':
@@ -288,37 +340,48 @@
           try {
             await pc.addIceCandidate(msg.candidate);
           } catch (err) {
-            console.warn('ICE candidate rejected:', err);
+            console.warn('ICE rejected:', err);
           }
         });
         break;
 
+      case 'leave-room':
+        closePc();
+        showView('preview');
+        showError('Host ended the session.');
+        break;
+
       case 'replaced':
         closePc();
-        setConnState('closed');
-        setReceiver('-', '');
-        showError('Another phone is now connected as the microphone. Tap Reconnect to take over again.');
+        showError('Another device connected with the same role.');
         break;
     }
   }
 
   function connectSignaling() {
+    if (signaling && signaling.isAlive()) {
+      signaling.send({
+        type: 'join-request',
+        roomId: currentRoomId,
+        deviceName: currentDeviceName,
+      });
+      return;
+    }
+
     signaling = new WM.Signaling('sender', {
       isConnected: () => !!pc && pc.connectionState === 'connected',
-      onOpen: () => {},
+      onMessage: onSignalingMessage,
       onClose: () => {
         peerPresent = false;
-        setReceiver('Signaling offline, retrying...', 'warn');
       },
-      onMessage: onSignalingMessage,
     });
     signaling.connect();
   }
 
-  // ------------------------------------------------------------ wake lock
+  // ------------------------------------------------------------ WAKE LOCK
   async function requestWakeLock() {
     if (!('wakeLock' in navigator)) {
-      el.wakeNote.textContent = 'This browser cannot keep the screen on. Turn off screen timeout in Android settings while using the mic.';
+      el.wakeNote.textContent = 'Screen lock stops audio. Keep screen turned on while speaking.';
       return;
     }
     try {
@@ -326,100 +389,153 @@
       wakeLock.addEventListener('release', () => {
         wakeLock = null;
       });
-      el.wakeNote.textContent = 'Screen is kept on. Locking the phone stops the microphone.';
+      el.wakeNote.textContent = 'Screen wake lock active.';
     } catch {
-      el.wakeNote.textContent = 'Could not keep the screen on. Turn off screen timeout in Android settings while using the mic.';
+      el.wakeNote.textContent = 'Keep screen turned on while speaking.';
     }
   }
 
-  // -------------------------------------------------------------- controls
-  function setupControls() {
-    el.micToggle.addEventListener('click', () => {
-      latched = !latched;
-      applyMicState();
-    });
+  // ------------------------------------------------------------- REQUEST ACCESS FLOW
+  async function requestAccess() {
+    el.micGateError.hidden = true;
+    el.btnJoinRoom.disabled = true;
 
-    el.mute.addEventListener('click', () => {
-      muted = !muted;
-      applyMicState();
-    });
-
-    el.reconnect.addEventListener('click', () => {
-      showError('');
-      clearTimeout(reconnectTimer);
-      reconnectTimer = null;
-      signaling.resume(); // reconnects the socket if needed; 'joined' then starts the call
-      if (signaling.isOpen()) {
-        if (peerPresent) startCall();
-        else setReceiver('Waiting for laptop', '');
-      }
-    });
-
-    // Push-to-talk: touch for the phone, mouse for testing on a desktop.
-    const press = () => {
-      pttHeld = true;
-      applyMicState();
-    };
-    const release = () => {
-      if (!pttHeld) return;
-      pttHeld = false;
-      applyMicState();
-    };
-    el.ptt.addEventListener('touchstart', (e) => { e.preventDefault(); press(); }, { passive: false });
-    el.ptt.addEventListener('touchend', (e) => { e.preventDefault(); release(); }, { passive: false });
-    el.ptt.addEventListener('touchcancel', release);
-    el.ptt.addEventListener('mousedown', press);
-    el.ptt.addEventListener('mouseup', release);
-    el.ptt.addEventListener('mouseleave', release);
-    el.ptt.addEventListener('contextmenu', (e) => e.preventDefault()); // long-press menu on Android
-    window.addEventListener('blur', release);
-
-    document.addEventListener('visibilitychange', () => {
-      if (document.hidden) {
-        release(); // never leave PTT stuck on if the screen turns off
-      } else if (audioTrack) {
-        requestWakeLock();
-        if (signaling && !signaling.isAlive()) signaling.connect();
-      }
-    });
-  }
-
-  // ----------------------------------------------------------------- start
-  async function start() {
-    el.gateError.hidden = true;
-    el.startBtn.disabled = true;
-
-    // Create the AudioContext inside the tap so the browser lets it run.
     audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
 
     try {
       stream = await initMicrophone();
     } catch (err) {
-      el.permission.textContent = err.name === 'NotAllowedError' ? 'Denied' : 'Unavailable';
-      el.permission.className = 'value bad';
-      el.gateError.textContent = describeMicError(err);
-      el.gateError.hidden = false;
-      el.startBtn.disabled = false;
+      el.micGateError.textContent = describeMicError(err);
+      el.micGateError.hidden = false;
+      el.btnJoinRoom.disabled = false;
       return;
     }
 
-    el.permission.textContent = 'Granted';
-    el.permission.className = 'value good';
     audioTrack = stream.getAudioTracks()[0];
-    audioTrack.enabled = false; // start silent; the user decides when to go live
-    audioTrack.addEventListener('ended', () => {
-      showError('The microphone stopped (another app took it, or the screen locked). Tap Start again after reloading this page.');
-    });
+    audioTrack.enabled = false; // Start muted until user triggers Mic ON / PTT
 
     if (audioCtx.state === 'suspended') await audioCtx.resume();
     setupAudioMeter();
-    applyMicState();
-    requestWakeLock();
+
+    // Show waiting screen
+    el.waitingRoomId.textContent = currentRoomId;
+    showView('waiting');
+    el.btnJoinRoom.disabled = false;
+
+    // Connect and send join request to host
     connectSignaling();
-    el.gate.hidden = true;
   }
 
-  el.startBtn.addEventListener('click', start);
-  setupControls();
-  applyMicState();
+  // ------------------------------------------------------------- UI CONTROLS & EVENTS
+  function setupEvents() {
+    // Manual code entry
+    el.btnSubmitManualCode.addEventListener('click', () => {
+      const code = el.inputManualRoom.value.trim().toUpperCase();
+      if (!code) return;
+      currentRoomId = code;
+      currentDeviceName = el.inputDeviceNameManual.value.trim() || WM.detectDeviceName();
+      el.previewRoomId.textContent = currentRoomId;
+      el.previewRoomName.textContent = `Room ${currentRoomId}`;
+      el.previewRoomTitle.textContent = `Room ${currentRoomId}`;
+      el.inputDeviceName.value = currentDeviceName;
+      showView('preview');
+    });
+
+    // Join Preview
+    el.btnJoinRoom.addEventListener('click', () => {
+      currentDeviceName = el.inputDeviceName.value.trim() || WM.detectDeviceName();
+      requestAccess();
+    });
+
+    el.btnCancelJoin.addEventListener('click', () => {
+      showView('enter-code');
+    });
+
+    // Waiting Screen
+    el.btnCancelRequest.addEventListener('click', () => {
+      closePc();
+      showView('preview');
+    });
+
+    // Rejected Screen
+    el.btnRetryJoin.addEventListener('click', () => {
+      showView('preview');
+    });
+
+    // Circular Mic Button Toggle
+    el.micCircleBtn.addEventListener('click', () => {
+      latched = !latched;
+      applyMicState();
+    });
+
+    // Mute Button Toggle
+    el.muteBtn.addEventListener('click', () => {
+      muted = !muted;
+      applyMicState();
+    });
+
+    // Push To Talk Handlers
+    const pressPtt = () => {
+      pttHeld = true;
+      applyMicState();
+    };
+
+    const releasePtt = () => {
+      if (!pttHeld) return;
+      pttHeld = false;
+      applyMicState();
+    };
+
+    el.pttButton.addEventListener('touchstart', (e) => { e.preventDefault(); pressPtt(); }, { passive: false });
+    el.pttButton.addEventListener('touchend', (e) => { e.preventDefault(); releasePtt(); }, { passive: false });
+    el.pttButton.addEventListener('touchcancel', releasePtt);
+    el.pttButton.addEventListener('mousedown', pressPtt);
+    el.pttButton.addEventListener('mouseup', releasePtt);
+    el.pttButton.addEventListener('mouseleave', releasePtt);
+    el.pttButton.addEventListener('contextmenu', (e) => e.preventDefault());
+    window.addEventListener('blur', releasePtt);
+
+    // Leave Room
+    el.btnLeaveRoom.addEventListener('click', () => {
+      closePc();
+      latched = false;
+      pttHeld = false;
+      muted = false;
+      applyMicState();
+      showView('preview');
+    });
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        releasePtt();
+      } else if (audioTrack) {
+        requestWakeLock();
+      }
+    });
+  }
+
+  // ------------------------------------------------------------- INITIALIZATION
+  function init() {
+    setupEvents();
+    el.inputDeviceName.value = currentDeviceName;
+    el.inputDeviceNameManual.value = currentDeviceName;
+
+    // Check URL query parameters
+    const params = new URLSearchParams(window.location.search);
+    const roomParam = params.get('room');
+    const nameParam = params.get('name');
+
+    if (roomParam) {
+      currentRoomId = roomParam.trim().toUpperCase();
+      currentRoomName = nameParam ? decodeURIComponent(nameParam) : 'Meeting Room';
+      el.previewRoomId.textContent = currentRoomId;
+      el.previewRoomName.textContent = currentRoomName;
+      el.previewRoomTitle.textContent = currentRoomName;
+      showView('preview');
+    } else {
+      showView('enter-code');
+    }
+  }
+
+  init();
 })();

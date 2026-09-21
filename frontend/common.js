@@ -206,12 +206,12 @@ const WM = (() => {
       const lit = Math.round(shown * count);
       for (let i = 0; i < count; i++) {
         const pos = i / count;
-        const color = pos > 0.92 ? '#ff4d4f' : pos > 0.7 ? '#ffc53d' : '#22c55e';
-        ctx.fillStyle = i < lit ? color : '#2b353f';
+        const color = pos > 0.92 ? '#f87171' : pos > 0.7 ? '#fbbf24' : '#34d399';
+        ctx.fillStyle = i < lit ? color : 'rgba(22, 56, 50, 0.4)';
         ctx.fillRect(i * (seg + gap), 0, seg, H);
       }
       if (now < clipUntil) {
-        ctx.fillStyle = '#ff4d4f';
+        ctx.fillStyle = '#f87171';
         ctx.font = `700 ${Math.round(H * 0.4)}px system-ui, sans-serif`;
         ctx.textAlign = 'right';
         ctx.textBaseline = 'middle';
@@ -228,7 +228,133 @@ const WM = (() => {
     requestAnimationFrame(draw);
   }
 
-  return { CONFIG, RTC_CONFIG, wsUrl, tuneOpus, quality, serialQueue, Signaling, createMeter };
+  /** Generate random room code like MIC-4821 */
+  function generateRoomId() {
+    const num = Math.floor(1000 + Math.random() * 9000);
+    return `MIC-${num}`;
+  }
+
+  /** Detect device model / OS for join request display */
+  function detectDeviceName() {
+    if (typeof navigator === 'undefined') return 'Remote Device';
+    const ua = navigator.userAgent || '';
+    if (/Android/i.test(ua)) return 'Android Device';
+    if (/iPhone|iPad|iPod/i.test(ua)) return 'iOS Device';
+    if (/Windows/i.test(ua)) return 'Windows PC';
+    if (/Macintosh|Mac OS X/i.test(ua)) return 'Mac Device';
+    if (/Linux/i.test(ua)) return 'Linux Device';
+    return 'Mobile Device';
+  }
+
+  /**
+   * Draw a studio-grade glowing real-time oscilloscope waveform on a canvas.
+   */
+  function createWaveformVisualizer(analyser, canvas) {
+    const bufferLength = analyser.frequencyBinCount;
+    const timeData = new Uint8Array(bufferLength);
+    const ctx = canvas.getContext('2d');
+    let phase = 0;
+
+    function fitCanvas() {
+      const dpr = window.devicePixelRatio || 1;
+      const w = Math.round(canvas.clientWidth * dpr);
+      const h = Math.round(canvas.clientHeight * dpr);
+      if (w && h && (canvas.width !== w || canvas.height !== h)) {
+        canvas.width = w;
+        canvas.height = h;
+      }
+    }
+
+    function render() {
+      requestAnimationFrame(render);
+      fitCanvas();
+
+      const W = canvas.width;
+      const H = canvas.height;
+      if (!W || !H) return;
+
+      ctx.clearRect(0, 0, W, H);
+      analyser.getByteTimeDomainData(timeData);
+
+      // Studio oscilloscope grid lines
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = 'rgba(142, 182, 155, 0.08)';
+
+      // Horizontal grid lines (-12dB, 0dB, +12dB)
+      ctx.beginPath();
+      ctx.moveTo(0, H * 0.25); ctx.lineTo(W, H * 0.25);
+      ctx.moveTo(0, H * 0.5); ctx.lineTo(W, H * 0.5);
+      ctx.moveTo(0, H * 0.75); ctx.lineTo(W, H * 0.75);
+      ctx.stroke();
+
+      // Check if audio signal is active or silent
+      let sum = 0;
+      for (let i = 0; i < bufferLength; i++) {
+        const val = Math.abs(timeData[i] - 128);
+        sum += val;
+      }
+      const isSilent = sum < bufferLength * 1.5;
+
+      // Draw Waveform
+      ctx.lineWidth = 2.5;
+      ctx.strokeStyle = '#DAF1DE';
+      ctx.shadowColor = 'rgba(52, 211, 153, 0.75)';
+      ctx.shadowBlur = 14;
+      ctx.beginPath();
+
+      const sliceWidth = W / (bufferLength - 1);
+      let x = 0;
+
+      phase += 0.05;
+
+      for (let i = 0; i < bufferLength; i++) {
+        let v = timeData[i] / 128.0;
+        
+        // When silent, add a very subtle gentle living wave so the screen feels active and alive
+        if (isSilent) {
+          const idleWave = Math.sin(phase + (i * 0.04)) * 0.025;
+          v = 1.0 + idleWave;
+        }
+
+        const y = (v * H) / 2;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+        x += sliceWidth;
+      }
+
+      ctx.stroke();
+
+      // Fill gradient underneath the wave
+      ctx.lineTo(W, H);
+      ctx.lineTo(0, H);
+      ctx.closePath();
+      
+      const grad = ctx.createLinearGradient(0, 0, 0, H);
+      grad.addColorStop(0, 'rgba(52, 211, 153, 0.15)');
+      grad.addColorStop(0.5, 'rgba(22, 60, 55, 0.08)');
+      grad.addColorStop(1, 'rgba(3, 12, 13, 0)');
+      ctx.fillStyle = grad;
+      ctx.shadowBlur = 0;
+      ctx.fill();
+    }
+
+    requestAnimationFrame(render);
+  }
+
+  return {
+    CONFIG,
+    RTC_CONFIG,
+    wsUrl,
+    tuneOpus,
+    quality,
+    serialQueue,
+    Signaling,
+    createMeter,
+    generateRoomId,
+    detectDeviceName,
+    createWaveformVisualizer,
+  };
 })();
 
 if (typeof module !== 'undefined' && module.exports) module.exports = WM;
+

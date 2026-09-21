@@ -20,7 +20,7 @@ const OPEN = 1; // WebSocket.OPEN
 const ROLES = new Set(['sender', 'receiver']);
 
 // Message types that are allowed to be relayed between peers.
-const RELAYED = new Set(['offer', 'answer', 'ice-candidate', 'request-offer']);
+const RELAYED = new Set(['offer', 'answer', 'ice-candidate', 'request-offer', 'join-request', 'join-response', 'leave-room', 'kick']);
 
 const other = (role) => (role === 'sender' ? 'receiver' : 'sender');
 

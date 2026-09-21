@@ -97,3 +97,28 @@ test('does not throw when the peer socket is not open', () => {
   laptop.readyState = 3;
   assert.doesNotThrow(() => r.handle(phone, JSON.stringify({ type: 'offer', sid: 'a', sdp: 'x' })));
 });
+
+test('join-request and join-response are relayed between sender and receiver', () => {
+  const r = new Relay();
+  const phone = fakeSocket();
+  const laptop = fakeSocket();
+  join(r, phone, 'sender');
+  join(r, laptop, 'receiver');
+
+  // Phone requests to join meeting room
+  r.handle(phone, JSON.stringify({ type: 'join-request', roomId: 'MIC-4821', deviceName: 'Android Phone' }));
+  assert.deepStrictEqual(laptop.sent.at(-1), {
+    type: 'join-request',
+    roomId: 'MIC-4821',
+    deviceName: 'Android Phone',
+  });
+
+  // Laptop approves join request
+  r.handle(laptop, JSON.stringify({ type: 'join-response', approved: true, roomId: 'MIC-4821' }));
+  assert.deepStrictEqual(phone.sent.at(-1), {
+    type: 'join-response',
+    approved: true,
+    roomId: 'MIC-4821',
+  });
+});
+
