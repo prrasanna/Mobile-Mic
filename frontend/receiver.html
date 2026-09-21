@@ -38,145 +38,250 @@
     <!-- =================== VIEW 1: WELCOME / LANDING DASHBOARD =================== -->
     <section id="view-welcome">
 
-      <!-- Hero Section -->
-      <div class="landing-hero-center">
-        <div class="mic-hero-top-badge">
-          <svg class="svg-icon lg" viewBox="0 0 24 24">
-            <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
-            <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-            <line x1="12" x2="12" y1="19" y2="22" />
-          </svg>
+      <!-- Executive Header / Telemetry Section -->
+      <div class="pro-landing-hero">
+        <div class="pro-system-pill">
+          <span class="pro-pulse-dot"></span>
+          <span class="pill-text-strong">AIR-GAPPED ENTERPRISE AV RELAY</span>
+          <span class="pill-divider">|</span>
+          <span class="pill-crypto">E2E ENCRYPTED (TLS / AES)</span>
         </div>
 
-        <h2 class="main-hero-title">Mobile Mic</h2>
-        <p class="hero-tagline">
-          Turn any smartphone into a crystal-clear wireless microphone over local Wi-Fi.
-          No internet. No app install. Zero friction.
+        <h2 class="pro-hero-title">Wireless Audio Studio Hub</h2>
+        <p class="pro-hero-lead">
+          Studio-grade wireless microphone distribution operating strictly across your private local network.
+          Engineered for auditoriums, boardrooms, and live conferencing with zero cloud dependency.
         </p>
 
-        <!-- Animated soundwave -->
-        <div class="soundwave-visual-icon" aria-hidden="true">
-          <div class="soundwave-bar"></div>
-          <div class="soundwave-bar"></div>
-          <div class="soundwave-bar"></div>
-          <div class="soundwave-bar"></div>
-          <div class="soundwave-bar"></div>
-        </div>
+        <!-- Live Audio Telemetry Strip -->
+        <div class="pro-telemetry-grid">
+          <div class="pro-telemetry-item">
+            <div class="telemetry-icon">
+              <svg class="svg-icon" viewBox="0 0 24 24">
+                <path d="M5 13a10 10 0 0 1 14 0" />
+                <path d="M8.5 16.5a5 5 0 0 1 7 0" />
+                <line x1="12" x2="12.01" y1="20" y2="20" />
+              </svg>
+            </div>
+            <div class="telemetry-content">
+              <span class="telemetry-val">100% Air-Gapped</span>
+              <span class="telemetry-label">Local Offline Wi-Fi</span>
+            </div>
+          </div>
 
-        <!-- Feature pills -->
-        <div class="pill-badges-row">
-          <div class="info-badge-pill">
-            <svg class="svg-icon sm" viewBox="0 0 24 24">
-              <path d="M5 13a10 10 0 0 1 14 0" />
-              <path d="M8.5 16.5a5 5 0 0 1 7 0" />
-              <line x1="12" x2="12.01" y1="20" y2="20" />
-            </svg>
-            <span>100% Offline Wi-Fi</span>
+          <div class="pro-telemetry-item">
+            <div class="telemetry-icon">
+              <svg class="svg-icon" viewBox="0 0 24 24">
+                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+              </svg>
+            </div>
+            <div class="telemetry-content">
+              <span class="telemetry-val">&lt; 20ms Latency</span>
+              <span class="telemetry-label">Real-Time WebRTC</span>
+            </div>
           </div>
-          <div class="info-badge-pill">
-            <svg class="svg-icon sm" viewBox="0 0 24 24">
-              <rect width="18" height="11" x="3" y="11" rx="2" />
-              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-            </svg>
-            <span>Encrypted HTTPS</span>
+
+          <div class="pro-telemetry-item">
+            <div class="telemetry-icon">
+              <svg class="svg-icon" viewBox="0 0 24 24">
+                <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                <line x1="12" x2="12" y1="19" y2="22" />
+              </svg>
+            </div>
+            <div class="telemetry-content">
+              <span class="telemetry-val">Opus 48 kHz HD</span>
+              <span class="telemetry-label">Studio Quality Audio</span>
+            </div>
           </div>
-          <div class="info-badge-pill">
-            <svg class="svg-icon sm" viewBox="0 0 24 24">
-              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
-            </svg>
-            <span>Low Latency WebRTC</span>
-          </div>
-          <div class="info-badge-pill">
-            <svg class="svg-icon sm" viewBox="0 0 24 24">
-              <path
-                d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
-            </svg>
-            <span>Zero Install</span>
+
+          <div class="pro-telemetry-item">
+            <div class="telemetry-icon">
+              <svg class="svg-icon" viewBox="0 0 24 24">
+                <rect width="18" height="11" x="3" y="11" rx="2" />
+                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+              </svg>
+            </div>
+            <div class="telemetry-content">
+              <span class="telemetry-val">Zero-Install</span>
+              <span class="telemetry-label">Instant Browser Uplink</span>
+            </div>
           </div>
         </div>
       </div>
 
-      <!-- Action Cards Row -->
-      <div class="dual-action-grid">
+      <!-- Action Cards: Command Deck -->
+      <div class="pro-command-grid">
 
-        <!-- Card 1: Host a Room -->
-        <div class="action-card highlight">
+        <!-- Card 1: Host Room Controller -->
+        <div class="action-card pro-card-host highlight">
+          <div class="pro-card-badge-row">
+            <span class="pro-badge-role host">MASTER CONTROLLER</span>
+            <span class="pro-badge-tag">PROJECTOR / DISPLAY</span>
+          </div>
+
           <div class="action-card-header">
-            <div class="action-icon-box">
+            <div class="action-icon-box pro-icon-host">
               <svg class="svg-icon lg" viewBox="0 0 24 24">
                 <rect width="18" height="12" x="3" y="4" rx="2" />
                 <line x1="2" x2="22" y1="20" y2="20" />
               </svg>
             </div>
             <div class="action-title-box">
-              <h3>Host Room</h3>
-              <p>Control meeting &amp; sound from laptop</p>
+              <h3>Host Conference Room</h3>
+              <p>Initialize master receiver &amp; moderation dashboard</p>
             </div>
           </div>
 
           <p class="action-card-desc">
-            Generate a live private room, display the QR code on screen or projector, and authorize speakers to join.
+            Launch an encrypted local session. Broadcasts an instant pairing QR code on presentation screens, provides real-time audio mastering, and arbitrates speaker mic locks.
           </p>
 
-          <div class="card-form-group">
-            <label class="card-form-label" for="input-host-room-name">Host / Room Name</label>
-            <input class="card-form-input" id="input-host-room-name" type="text" value="Main Hall Audio"
-              placeholder="e.g. Room Name (Host)">
+          <div class="pro-feature-checklist">
+            <div class="pro-check-item">
+              <svg class="svg-icon sm check-svg" viewBox="0 0 24 24">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+              <span>Instant pairing QR code for audience screens</span>
+            </div>
+            <div class="pro-check-item">
+              <svg class="svg-icon sm check-svg" viewBox="0 0 24 24">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+              <span>Live waveform oscilloscope &amp; volume gain control</span>
+            </div>
+            <div class="pro-check-item">
+              <svg class="svg-icon sm check-svg" viewBox="0 0 24 24">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+              <span>Multi-participant room moderation &amp; mic lock</span>
+            </div>
           </div>
 
-          <button class="btn-primary btn-launch-action" id="btn-launch-host-room" type="button">
+          <div class="card-form-group">
+            <label class="card-form-label" for="input-host-room-name">Session / Room Identifier</label>
+            <div class="pro-input-wrap">
+              <svg class="svg-icon sm input-prefix-icon" viewBox="0 0 24 24">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              </svg>
+              <input class="card-form-input pro-input" id="input-host-room-name" type="text"
+                value="Main Conference Hall" placeholder="e.g. Conference Hall Main">
+            </div>
+          </div>
+
+          <button class="btn-primary btn-launch-action pro-btn-primary" id="btn-launch-host-room" type="button">
             <svg class="svg-icon sm" viewBox="0 0 24 24">
               <polygon points="5 3 19 12 5 21 5 3" />
             </svg>
-            Launch Meeting Room
+            <span>Initialize Host Console</span>
           </button>
         </div>
 
-        <!-- Card 2: Join a Room -->
-        <div class="action-card">
+        <!-- Card 2: Join as Microphone Terminal -->
+        <div class="action-card pro-card-join">
+          <div class="pro-card-badge-row">
+            <span class="pro-badge-role join">SPEAKER ACCESS</span>
+            <span class="pro-badge-tag">REMOTE TRANSMITTER</span>
+          </div>
+
           <div class="action-card-header">
-            <div class="action-icon-box">
+            <div class="action-icon-box pro-icon-join">
               <svg class="svg-icon lg" viewBox="0 0 24 24">
                 <rect width="14" height="20" x="5" y="2" rx="2" />
                 <line x1="12" x2="12.01" y1="18" y2="18" />
               </svg>
             </div>
             <div class="action-title-box">
-              <h3>Join Room</h3>
-              <p>Use phone as mobile microphone</p>
+              <h3>Join as Microphone</h3>
+              <p>Stream mobile or terminal audio into the room</p>
             </div>
           </div>
 
           <p class="action-card-desc">
-            Connect your phone to this Wi-Fi, enter your name and room ID, then request to speak whenever you're ready.
+            Connect directly to an active meeting room as a wireless speaker. Transmits crystal-clear voice with automatic echo cancellation and push-to-talk queueing.
           </p>
 
-          <div class="card-form-group">
-            <label class="card-form-label" for="input-join-display-name">Your Display Name</label>
-            <input class="card-form-input" id="input-join-display-name" type="text" placeholder="Your Name">
+          <div class="pro-feature-checklist">
+            <div class="pro-check-item">
+              <svg class="svg-icon sm check-svg" viewBox="0 0 24 24">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+              <span>Direct browser audio uplink with zero app install</span>
+            </div>
+            <div class="pro-check-item">
+              <svg class="svg-icon sm check-svg" viewBox="0 0 24 24">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+              <span>Hardware acoustic echo cancellation &amp; noise filter</span>
+            </div>
+            <div class="pro-check-item">
+              <svg class="svg-icon sm check-svg" viewBox="0 0 24 24">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+              <span>Single-tap speaking request with lock feedback</span>
+            </div>
           </div>
 
-          <div class="card-form-group">
-            <label class="card-form-label" for="input-join-meeting-id">Meeting ID</label>
-            <input class="card-form-input" id="input-join-meeting-id" type="text" placeholder="e.g. MIC-4821"
-              style="font-family: var(--font-mono); text-transform: uppercase;">
+          <div class="pro-dual-input-row">
+            <div class="card-form-group">
+              <label class="card-form-label" for="input-join-display-name">Speaker / Operator Name</label>
+              <div class="pro-input-wrap">
+                <svg class="svg-icon sm input-prefix-icon" viewBox="0 0 24 24">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                  <circle cx="12" cy="7" r="4" />
+                </svg>
+                <input class="card-form-input pro-input" id="input-join-display-name" type="text"
+                  placeholder="Your Name">
+              </div>
+            </div>
+
+            <div class="card-form-group">
+              <label class="card-form-label" for="input-join-meeting-id">Room Access Code</label>
+              <div class="pro-input-wrap">
+                <svg class="svg-icon sm input-prefix-icon" viewBox="0 0 24 24">
+                  <rect width="18" height="18" x="3" y="3" rx="2" />
+                  <path d="M7 7h.01M17 7h.01M7 17h.01M17 17h.01" />
+                </svg>
+                <input class="card-form-input pro-input" id="input-join-meeting-id" type="text"
+                  placeholder="e.g. MIC-4821" style="font-family: var(--font-mono); text-transform: uppercase;">
+              </div>
+            </div>
           </div>
 
-          <button class="btn-secondary btn-launch-action" id="btn-enter-join-room" type="button">
+          <button class="btn-secondary btn-launch-action pro-btn-secondary" id="btn-enter-join-room" type="button">
             <svg class="svg-icon sm" viewBox="0 0 24 24">
               <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
               <polyline points="10 17 15 12 10 7" />
               <line x1="15" x2="3" y1="12" y2="12" />
             </svg>
-            Enter Room
+            <span>Connect to Session</span>
           </button>
         </div>
       </div>
 
-      <!-- Footer strip -->
-      <p class="landing-footer-note">
-        Local Wi-Fi Network &nbsp;•&nbsp; Peer-to-Peer WebRTC Audio &nbsp;•&nbsp; End-to-End Secure Context
-      </p>
+      <!-- Professional Telemetry Specs Footer -->
+      <div class="pro-system-specs-bar">
+        <div class="spec-node">
+          <span class="spec-bullet"></span>
+          <span class="spec-name">SIGNALING:</span>
+          <span class="spec-val">Local WSS / JSON</span>
+        </div>
+        <div class="spec-node">
+          <span class="spec-bullet"></span>
+          <span class="spec-name">AUDIO CODEC:</span>
+          <span class="spec-val">Opus / 48kHz Stereo</span>
+        </div>
+        <div class="spec-node">
+          <span class="spec-bullet"></span>
+          <span class="spec-name">SECURITY CONTEXT:</span>
+          <span class="spec-val">DTLS-SRTP 128-bit AES</span>
+        </div>
+        <div class="spec-node">
+          <span class="spec-bullet"></span>
+          <span class="spec-name">INFRASTRUCTURE:</span>
+          <span class="spec-val">100% Offline LAN</span>
+        </div>
+      </div>
     </section>
 
     <!-- =================== VIEW 2: HOST ROOM LOBBY =================== -->
